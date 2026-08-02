@@ -48,6 +48,17 @@ scripts, enable session restore, re-log into Hyprland). See `install.sh` for det
 > The drive UUIDs in `system/omarchy-perf-install.sh` are specific to my machine —
 > edit them (`lsblk -f`) before running on different hardware.
 
+## Keeping this repo up to date
+
+After changing configs on the machine, snapshot them back and push in one command:
+
+```bash
+./sync.sh "what I changed"     # pull live configs into the repo, then commit & push
+./sync.sh                      # dry: pull + regenerate package lists + show git status only
+```
+
+`sync.sh` runs a secret scan and aborts before committing if it finds anything sensitive.
+
 ## Not included (on purpose)
 
 Secrets and machine state are deliberately excluded: `~/.ssh`, `~/.gnupg`,
