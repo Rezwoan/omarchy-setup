@@ -44,6 +44,11 @@ cp1 "$HOME/.config/btop/btop.conf"           "$REPO/config/btop/btop.conf"
 cp1 "$HOME/.config/kdeglobals"               "$REPO/config/kdeglobals"
 cp1 "$HOME/.config/dolphinrc"                "$REPO/config/dolphinrc"
 
+# ---- session env (XDG_MENU_PREFIX=arch- so Dolphin "Open With" lists apps) ----
+cp1 "$HOME/.config/uwsm/env"                 "$REPO/config/uwsm/env"
+# ---- default apps for file types (gThumb/Ark/Foliate/VS Code + everyday defaults) ----
+cp1 "$HOME/.config/mimeapps.list"            "$REPO/config/mimeapps.list"
+
 # ---- session-restore units + scripts ----
 cp1 "$HOME/.config/systemd/user/omarchy-session-save.service" "$REPO/config/systemd/user/omarchy-session-save.service"
 cp1 "$HOME/.config/systemd/user/omarchy-session-save.timer"   "$REPO/config/systemd/user/omarchy-session-save.timer"

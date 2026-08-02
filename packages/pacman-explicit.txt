@@ -1,9 +1,12 @@
 1password-beta
 1password-cli
+7zip
 ab-download-manager-bin
 aether
 alacritty
+archlinux-xdg-menu
 archnote
+ark
 asdcontrol
 base
 base-devel
@@ -44,6 +47,7 @@ fcitx5-gtk
 fcitx5-qt
 fd
 ffmpegthumbnailer
+foliate
 fontconfig
 freerdp
 fwupd
@@ -59,6 +63,7 @@ google-chrome
 gpu-screen-recorder
 grim
 gst-plugin-pipewire
+gthumb
 gum
 gvfs-mtp
 gvfs-nfs
@@ -184,6 +189,7 @@ typora
 tzupdate
 ufw
 ufw-docker
+unrar
 unzip
 usage
 uwsm

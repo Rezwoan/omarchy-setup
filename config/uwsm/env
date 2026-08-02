@@ -1,0 +1,16 @@
+# Changes require a restart to take effect.
+
+# Ensure Omarchy bins are in the path
+export OMARCHY_PATH=$HOME/.local/share/omarchy
+export PATH=$OMARCHY_PATH/bin:$PATH
+
+# Set default terminal and editor
+source ~/.config/uwsm/default
+
+# Make Dolphin's "Open With" list populate. uwsm derives XDG_MENU_PREFIX from the
+# desktop name (-> "hyprland-"), but no hyprland-applications.menu exists, so KDE's
+# app tree comes up empty. Point it at arch-applications.menu (archlinux-xdg-menu pkg).
+export XDG_MENU_PREFIX=arch-
+
+# Activate mise if present on the system
+omarchy-cmd-present mise && eval "$(mise activate bash --shims)"
