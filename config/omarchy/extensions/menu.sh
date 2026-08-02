@@ -24,17 +24,32 @@ _perf_ls_base()   { local b; b=$(echo /sys/module/linuwu_sense/drivers/platform:
 _perf_battlimit() { local b; b="$(_perf_ls_base)"; [[ -n $b && -r $b/battery_limiter ]] && { [[ "$(cat "$b"/battery_limiter 2>/dev/null)" == "1" ]] && echo on || echo off; } || echo n/a; }
 _perf_fan()       { local b v; b="$(_perf_ls_base)"; [[ -n $b && -r $b/fan_speed ]] && { v="$(cat "$b"/fan_speed 2>/dev/null)"; [[ -z $v || $v == 0* ]] && echo auto || echo "$v"; } || echo n/a; }
 _perf_thermal()   { cat /sys/firmware/acpi/platform_profile 2>/dev/null || echo n/a; }
+_perf_cpucap()    { local p; p=$(cat /sys/devices/system/cpu/intel_pstate/max_perf_pct 2>/dev/null); [[ -n $p ]] && echo "${p}%" || echo n/a; }
+_perf_cpucores()  { # report core state: all / no-HT / E-cores (n/total)
+  local total online smt
+  total=$(ls -d /sys/devices/system/cpu/cpu[0-9]* 2>/dev/null | wc -l)
+  online=0
+  for f in /sys/devices/system/cpu/cpu[0-9]*/online; do [[ "$(cat "$f" 2>/dev/null)" == 1 ]] && online=$((online+1)); done
+  [[ -e /sys/devices/system/cpu/cpu0/online ]] || online=$((online+1))  # cpu0 can't offline
+  smt=$(cat /sys/devices/system/cpu/smt/control 2>/dev/null)
+  if   (( online < total )); then echo "E-cores (${online}/${total})"
+  elif [[ $smt == off ]];    then echo "no-HT"
+  else echo "all (${total})"; fi
+}
 
 # ---------- Performance main submenu ----------
 show_performance_menu() {
-  local profile turbo gpu powerd session batt thermal fan battlimit
+  local profile turbo gpu powerd session batt thermal fan battlimit cpucap cpucores
   profile="$(_perf_profile)"; turbo="$(_perf_turbo)"; gpu="$(_perf_gpu_mode)"
   powerd="$(_perf_powerd)"; session="$(_perf_session)"; batt="$(_perf_batt)"
   thermal="$(_perf_thermal)"; fan="$(_perf_fan)"; battlimit="$(_perf_battlimit)"
+  cpucap="$(_perf_cpucap)"; cpucores="$(_perf_cpucores)"
 
   local options="󱐋  Power Profile   ·   ${profile}"
   options="$options\n󰔏  Thermal Profile   ·   ${thermal}"
   options="$options\n󰓅  CPU Turbo Boost   ·   ${turbo}"
+  options="$options\n󰾆  CPU Max Freq   ·   ${cpucap}"
+  options="$options\n󰬹  CPU Cores   ·   ${cpucores}"
   options="$options\n󰈐  Fan Mode   ·   ${fan}"
   options="$options\n󰢮  GPU Mode   ·   ${gpu}"
   options="$options\n󱩓  GPU Dynamic Boost   ·   ${powerd/inactive/off}"
@@ -48,6 +63,8 @@ show_performance_menu() {
   *"Power Profile"*)    show_perf_profile_menu ;;
   *"Thermal Profile"*)  show_perf_thermal_menu ;;
   *"CPU Turbo"*)        _perf_toggle_turbo ;;
+  *"CPU Max Freq"*)     show_perf_cpucap_menu ;;
+  *"CPU Cores"*)        show_perf_cpucores_menu ;;
   *"Fan Mode"*)         show_perf_fan_menu ;;
   *"GPU Mode"*)         show_perf_gpu_menu ;;
   *"Dynamic Boost"*)    _perf_toggle_powerd ;;
@@ -120,6 +137,35 @@ show_perf_fan_menu() {
   *50%*)      _perf_helper fan 50;   _perf_notify "Fan" "50%" ;;
   *70%*)      _perf_helper fan 70;   _perf_notify "Fan" "70%" ;;
   *Max*)      _perf_helper fan 100;  _perf_notify "Fan" "Max (100%)" ;;
+  *) ;;
+  esac
+  show_performance_menu
+}
+
+# ---------- CPU max frequency cap (intel_pstate max_perf_pct) ----------
+show_perf_cpucap_menu() {
+  [[ -e /sys/devices/system/cpu/intel_pstate/max_perf_pct ]] || {
+    _perf_notify "CPU Max Freq" "intel_pstate not available"; show_performance_menu; return; }
+  local opts="󰓅  100%   (full speed)\n󰾅  75%\n󰾆  50%   (battery)\n󱃍  40%   (max battery)"
+  case $(menu "CPU Max Frequency" "$opts") in
+  *100*) _perf_helper cpu-cap 100; _perf_notify "CPU Max Freq" "100% — full speed" ;;
+  *75*)  _perf_helper cpu-cap 75;  _perf_notify "CPU Max Freq" "Capped to 75%" ;;
+  *50*)  _perf_helper cpu-cap 50;  _perf_notify "CPU Max Freq" "Capped to 50% — battery" ;;
+  *40*)  _perf_helper cpu-cap 40;  _perf_notify "CPU Max Freq" "Capped to 40% — max battery" ;;
+  *) ;;
+  esac
+  show_performance_menu
+}
+
+# ---------- CPU core control (offline P-cores / disable hyperthreading) ----------
+show_perf_cpucores_menu() {
+  [[ -e /sys/devices/system/cpu/cpu1/online ]] || {
+    _perf_notify "CPU Cores" "Core hotplug not available"; show_performance_menu; return; }
+  local opts="󰬹  All cores   (full)\n󰬈  No Hyperthreading\n󰾆  E-cores only   (battery)"
+  case $(menu "CPU Cores  ·  resets on reboot" "$opts") in
+  *"All cores"*)  _perf_helper cpu-cores all;    _perf_notify "CPU Cores" "All cores online" ;;
+  *"No Hyper"*)   _perf_helper cpu-cores no-smt; _perf_notify "CPU Cores" "Hyperthreading disabled" ;;
+  *"E-cores"*)    _perf_helper cpu-cores ecore;  _perf_notify "CPU Cores" "P-cores offlined — running on E-cores" ;;
   *) ;;
   esac
   show_performance_menu

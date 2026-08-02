@@ -31,6 +31,51 @@ case "$cmd" in
       off) echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo ;;
       *) exit 2 ;;
     esac ;;
+  cpu-cap)   # underclock: cap max CPU frequency to a percentage (20-100)
+    f=/sys/devices/system/cpu/intel_pstate/max_perf_pct
+    [[ -w $f ]] || exit 3
+    case "$val" in
+      [1-9][0-9]|100) (( val >= 20 )) || exit 2; echo "$val" > "$f" ;;
+      *) exit 2 ;;
+    esac ;;
+  cpu-cores) # all | no-smt (disable hyperthreading) | ecore (offline P-cores)
+    SMT=/sys/devices/system/cpu/smt/control
+    case "$val" in
+      all)
+        [[ -w $SMT ]] && echo on > "$SMT" 2>/dev/null || true
+        for c in /sys/devices/system/cpu/cpu[0-9]*/online; do echo 1 > "$c" 2>/dev/null || true; done ;;
+      no-smt)
+        for c in /sys/devices/system/cpu/cpu[0-9]*/online; do echo 1 > "$c" 2>/dev/null || true; done
+        [[ -w $SMT ]] && echo off > "$SMT" || exit 3 ;;
+      ecore) # keep E-cores (+ un-offlinable cpu0), offline every P-core thread
+        # Online all first so the P-core map is complete, then read the
+        # authoritative Intel-hybrid list (cpu_core = P-cores). This list is
+        # dynamic, so it must be read while all cores are online.
+        for c in /sys/devices/system/cpu/cpu[0-9]*/online; do echo 1 > "$c" 2>/dev/null || true; done
+        pcpus="$(cat /sys/devices/cpu_core/cpus 2>/dev/null)"
+        if [[ -n $pcpus ]]; then
+          for part in ${pcpus//,/ }; do
+            lo=${part%-*}; hi=${part#*-}
+            for ((i=lo; i<=hi; i++)); do
+              [[ $i == 0 ]] && continue
+              f=/sys/devices/system/cpu/cpu$i/online
+              [[ -w $f ]] && echo 0 > "$f" 2>/dev/null || true
+            done
+          done
+        else
+          # fallback (non-hybrid / no cpu_core): snapshot HT-paired threads first,
+          # since offlining collapses the survivor sibling's list.
+          targets=()
+          for d in /sys/devices/system/cpu/cpu[0-9]*; do
+            n=${d##*cpu}; [[ $n == 0 ]] && continue
+            [[ -w $d/online ]] || continue
+            sl="$(cat "$d/topology/thread_siblings_list" 2>/dev/null)"
+            [[ $sl == *,* || $sl == *-* ]] && targets+=("$d/online")
+          done
+          for f in "${targets[@]}"; do echo 0 > "$f" 2>/dev/null || true; done
+        fi ;;
+      *) exit 2 ;;
+    esac ;;
   epp)
     case "$val" in
       power|balance_power|balance_performance|performance|default)
@@ -97,7 +142,7 @@ case "$cmd" in
     cur="$(cat "$KB/per_zone_mode" 2>/dev/null)"; zones="${cur%,*}"
     [[ $zones =~ ^[0-9a-fA-F]{6}(,[0-9a-fA-F]{6}){3}$ ]] || zones="ffffff,ffffff,ffffff,ffffff"
     echo "$zones,$br" > "$KB/per_zone_mode" ;;
-  *) echo "usage: omarchy-perf-helper {turbo|epp|platform-profile|gpu-runtime|nvidia-powerd|battery-limit|fan|kb-zone|kb-effect|kb-bright} <value...>" >&2; exit 2 ;;
+  *) echo "usage: omarchy-perf-helper {turbo|cpu-cap|cpu-cores|epp|platform-profile|gpu-runtime|nvidia-powerd|battery-limit|fan|kb-zone|kb-effect|kb-bright} <value...>" >&2; exit 2 ;;
 esac
 HELPER
 chmod 755 /usr/local/bin/omarchy-perf-helper
