@@ -10,7 +10,8 @@
 set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
-cp1() { [[ -e $1 ]] && { install -d "$(dirname "$2")"; cp -a "$1" "$2"; }; }
+# copy, dereferencing symlinks (-L) so we store content, never a dangling link
+cp1() { [[ -e $1 ]] && { install -d "$(dirname "$2")"; cp -aL "$1" "$2"; }; }
 
 say "Pulling live configs into $REPO"
 
@@ -34,7 +35,8 @@ cp1 "$HOME/.config/walker/config.toml"       "$REPO/config/walker/config.toml"
 cp1 "$HOME/.config/ghostty/config"           "$REPO/config/ghostty/config"
 cp1 "$HOME/.config/alacritty/alacritty.toml" "$REPO/config/alacritty/alacritty.toml"
 cp1 "$HOME/.config/kitty/kitty.conf"         "$REPO/config/kitty/kitty.conf"
-cp1 "$HOME/.config/mako/config"              "$REPO/config/mako/config"
+# NOTE: ~/.config/mako/config is an omarchy theme-managed symlink — omarchy
+# recreates it on `omarchy theme set`, so it is intentionally NOT tracked here.
 cp1 "$HOME/.config/swayosd/config.toml"      "$REPO/config/swayosd/config.toml"
 cp1 "$HOME/.config/swayosd/style.css"        "$REPO/config/swayosd/style.css"
 cp1 "$HOME/.config/fastfetch/config.jsonc"   "$REPO/config/fastfetch/config.jsonc"

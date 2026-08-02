@@ -11,7 +11,7 @@ shell/     ~/.zshrc ~/.bashrc ~/.bash_profile ~/.p10k.zsh   (aliases, prompt)
 config/    ~/.config subset:
            hypr/         keybindings, autostart, monitors, look & feel, idle/lock
            omarchy/      extensions/menu.sh  ← the custom Performance control center
-           waybar/ walker/ ghostty/ alacritty/ kitty/ mako/ swayosd/ fastfetch/ btop/
+           waybar/ walker/ ghostty/ alacritty/ kitty/ swayosd/ fastfetch/ btop/
            kdeglobals dolphinrc               ← Dolphin "Hackerman" dark theme + settings
            systemd/user/ omarchy-session-save.{service,timer}
 local-bin/ omarchy-session-save / -restore    ← "reopen my apps on login"
