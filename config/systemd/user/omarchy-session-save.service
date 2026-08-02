@@ -1,0 +1,6 @@
+[Unit]
+Description=Snapshot open windows for Omarchy session restore
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-session-save

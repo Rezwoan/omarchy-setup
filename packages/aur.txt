@@ -1,0 +1,15 @@
+ab-download-manager-bin
+archnote
+debtap
+envycontrol
+ffmpeg7.1
+ffmpeg7.1-debug
+google-chrome
+jetbrains-toolbox
+linuwu-sense-dkms
+mint-y-icons
+plex-media-server-plexpass
+postman-bin
+posy-improved-cursors
+spacedrive-bin
+spacedrive-bin-debug

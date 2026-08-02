@@ -1,0 +1,30 @@
+#!/bin/bash
+# omarchy-session-save — snapshot currently open windows for later restore.
+# Best-effort: records each window's workspace + launch command. Runs only
+# when session restore is enabled. Triggered by a 1-min user timer.
+
+set -uo pipefail
+
+FLAG="$HOME/.config/omarchy/session-restore.enabled"
+OUT="$HOME/.config/omarchy/session.tsv"
+[[ -f $FLAG ]] || exit 0
+command -v hyprctl >/dev/null || exit 0
+
+# Windows we never want to relaunch (bars, launchers, agents, the menu itself).
+DENY='^(walker|waybar|hyprpaper|swaybg|mako|swaync|hypridle|xdg-desktop-portal.*|polkit.*|hyprpolkitagent|uwsm.*|\.?blueman.*|nm-applet|udiskie)$'
+
+tmp="$(mktemp)"
+hyprctl clients -j 2>/dev/null \
+  | jq -r '.[] | select(.pid > 0 and (.workspace.id > 0) and (.mapped == true)) | "\(.pid)\t\(.workspace.id)\t\(.floating)\t\(.class)"' \
+  | while IFS=$'\t' read -r pid ws floating class; do
+      # Resolve the real launch command from /proc
+      cmd="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | sed 's/[[:space:]]*$//')"
+      [[ -z $cmd ]] && continue
+      # Skip denied background pieces by class or command basename
+      base="$(basename "${cmd%% *}")"
+      [[ "$class" =~ $DENY || "$base" =~ $DENY ]] && continue
+      printf '%s\t%s\t%s\n' "$ws" "$floating" "$cmd"
+    done | sort -u > "$tmp"
+
+# Only overwrite if we captured something (avoid wiping a good snapshot on a race)
+if [[ -s $tmp ]]; then mv "$tmp" "$OUT"; else rm -f "$tmp"; fi

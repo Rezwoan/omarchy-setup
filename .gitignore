@@ -1,0 +1,15 @@
+# Never commit secrets or machine state
+*.bak
+*.bak.*
+**/session.tsv
+**/session-restore.enabled
+*.key
+*.pem
+id_rsa*
+id_ed25519*
+*.gpg
+.env
+.env.*
+*credentials*
+*secret*
+*token*

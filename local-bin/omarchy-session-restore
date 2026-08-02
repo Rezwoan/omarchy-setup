@@ -1,0 +1,24 @@
+#!/bin/bash
+# omarchy-session-restore — relaunch the apps saved by omarchy-session-save,
+# each onto the workspace it was on. Runs once at login (via autostart),
+# only when session restore is enabled.
+
+set -uo pipefail
+
+FLAG="$HOME/.config/omarchy/session-restore.enabled"
+IN="$HOME/.config/omarchy/session.tsv"
+[[ -f $FLAG && -s $IN ]] || exit 0
+command -v hyprctl >/dev/null || exit 0
+
+# Give the compositor / bars a moment to come up first.
+sleep 3
+
+while IFS=$'\t' read -r ws floating cmd; do
+  [[ -z $cmd ]] && continue
+  if [[ $floating == "true" ]]; then
+    hyprctl dispatch exec "[workspace $ws silent; float] $cmd" >/dev/null 2>&1
+  else
+    hyprctl dispatch exec "[workspace $ws silent] $cmd" >/dev/null 2>&1
+  fi
+  sleep 0.4   # stagger launches so they land on the right workspace
+done < "$IN"
