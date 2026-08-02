@@ -39,6 +39,7 @@ show_performance_menu() {
   options="$options\n󰢮  GPU Mode   ·   ${gpu}"
   options="$options\n󱩓  GPU Dynamic Boost   ·   ${powerd/inactive/off}"
   options="$options\n󰁻  Battery Limit 80%   ·   ${battlimit}"
+  options="$options\n󰌌  Keyboard Lighting"
   options="$options\n󰦛  Session Restore   ·   ${session}"
   options="$options\n󰋚  Live GPU Stats"
   options="$options\n󰁹  Battery Info   ·   ${batt}"
@@ -51,6 +52,7 @@ show_performance_menu() {
   *"GPU Mode"*)         show_perf_gpu_menu ;;
   *"Dynamic Boost"*)    _perf_toggle_powerd ;;
   *"Battery Limit"*)    _perf_toggle_battlimit ;;
+  *"Keyboard Lighting"*) show_perf_kb_menu ;;
   *"Session Restore"*)  _perf_toggle_session ;;
   *"Live GPU"*)         present_terminal "watch -n1 nvidia-smi" ;;
   *"Battery Info"*)     _perf_battery_info ;;
@@ -121,6 +123,69 @@ show_perf_fan_menu() {
   *) ;;
   esac
   show_performance_menu
+}
+
+# ---------- keyboard lighting (Linuwu-Sense four_zoned_kb) ----------
+_perf_kb_base()  { local k=/sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/four_zoned_kb; [[ -d $k ]] && echo "$k"; }
+_perf_theme_hex() {  # Omarchy current-theme accent, as 6 hex digits (fallback white)
+  local a
+  a="$(grep -m1 '^accent' "$HOME/.config/omarchy/current/theme/colors.toml" 2>/dev/null | grep -oiE '[0-9a-f]{6}' | head -1)"
+  echo "${a:-ffffff}" | tr 'A-F' 'a-f'
+}
+
+show_perf_kb_menu() {
+  if [[ -z "$(_perf_kb_base)" ]]; then _perf_notify "Keyboard" "4-zone RGB not available"; show_performance_menu; return; fi
+  local opts="󰈹  Color (static)\n󱍢  Effect\n󰃟  Brightness\n󰸉  Match Omarchy theme\n󰽥  Off"
+  case $(menu "Keyboard Lighting" "$opts") in
+  *"Color"*)      show_perf_kb_color_menu ;;
+  *"Effect"*)     show_perf_kb_effect_menu ;;
+  *"Brightness"*) show_perf_kb_bright_menu ;;
+  *"Match"*)      _perf_helper kb-zone "$(_perf_theme_hex)" 100; _perf_notify "Keyboard" "Matched theme"; show_perf_kb_menu ;;
+  *"Off"*)        _perf_helper kb-bright 0; _perf_notify "Keyboard" "Backlight off"; show_perf_kb_menu ;;
+  *) show_performance_menu ;;
+  esac
+}
+
+show_perf_kb_color_menu() {
+  local hex=""
+  case $(menu "Keyboard Color" "󰉦  Theme\n󰉦  Green\n󰉦  Teal\n󰉦  Cyan\n󰉦  Blue\n󰉦  Purple\n󰉦  Red\n󰉦  Orange\n󰉦  White") in
+  *Theme*)  hex="$(_perf_theme_hex)" ;;
+  *Green*)  hex="82fb9c" ;;
+  *Teal*)   hex="00aec7" ;;
+  *Cyan*)   hex="00ffff" ;;
+  *Blue*)   hex="3b82f6" ;;
+  *Purple*) hex="a855f7" ;;
+  *Red*)    hex="ff2b2b" ;;
+  *Orange*) hex="ff8800" ;;
+  *White*)  hex="ffffff" ;;
+  *) show_perf_kb_menu; return ;;
+  esac
+  _perf_helper kb-zone "$hex" 100; _perf_notify "Keyboard" "Static #$hex"; show_perf_kb_menu
+}
+
+show_perf_kb_effect_menu() {
+  local hex mode; hex="$(_perf_theme_hex)"
+  case $(menu "Keyboard Effect" "󰋙  Static\n󰟆  Breathing\n󰙴  Neon\n󱡍  Wave\n󰑙  Shifting\n󰝥  Zoom\n󰇥  Meteor\n󰝤  Twinkling") in
+  *Static*)    _perf_helper kb-zone "$hex" 100; _perf_notify "Keyboard" "Static"; show_perf_kb_menu; return ;;
+  *Breathing*) mode=1 ;;
+  *Neon*)      mode=2 ;;
+  *Wave*)      mode=3 ;;
+  *Shifting*)  mode=4 ;;
+  *Zoom*)      mode=5 ;;
+  *Meteor*)    mode=6 ;;
+  *Twinkling*) mode=7 ;;
+  *) show_perf_kb_menu; return ;;
+  esac
+  _perf_helper kb-effect "$mode" 5 100 1 "$hex"; _perf_notify "Keyboard" "Effect applied"; show_perf_kb_menu
+}
+
+show_perf_kb_bright_menu() {
+  local b=""
+  case $(menu "Keyboard Brightness" "󰃠  100%\n󰃝  75%\n󰃟  50%\n󰃞  25%\n󰽥  Off") in
+  *100*) b=100 ;; *75*) b=75 ;; *50*) b=50 ;; *25*) b=25 ;; *Off*) b=0 ;;
+  *) show_perf_kb_menu; return ;;
+  esac
+  _perf_helper kb-bright "$b"; _perf_notify "Keyboard" "Brightness ${b}%"; show_perf_kb_menu
 }
 
 # ---------- toggles ----------

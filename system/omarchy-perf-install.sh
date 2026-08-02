@@ -75,7 +75,29 @@ case "$cmd" in
       [1-9]|[1-9][0-9]|100) echo "$val" > "$b/fan_speed" ;;
       *) exit 2 ;;
     esac ;;
-  *) echo "usage: omarchy-perf-helper {turbo|epp|platform-profile|gpu-runtime|nvidia-powerd|battery-limit|fan} <value>" >&2; exit 2 ;;
+  kb-zone)   # static, all 4 zones one colour:  kb-zone <hex6> <brightness0-100>
+    KB=/sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/four_zoned_kb
+    [[ -w $KB/per_zone_mode ]] || exit 3
+    h="${2:-}"; br="${3:-}"
+    [[ $h =~ ^[0-9a-fA-F]{6}$ ]] || exit 2
+    { [[ $br =~ ^[0-9]+$ ]] && (( br >= 0 && br <= 100 )); } || exit 2
+    echo "$h,$h,$h,$h,$br" > "$KB/per_zone_mode" ;;
+  kb-effect) # animated effect: kb-effect <mode0-7> <speed0-9> <bright0-100> <dir1-2> <hex6>
+    KB=/sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/four_zoned_kb
+    [[ -w $KB/four_zone_mode ]] || exit 3
+    m="${2:-}"; s="${3:-}"; br="${4:-}"; d="${5:-}"; h="${6:-}"
+    [[ $m =~ ^[0-7]$ && $s =~ ^[0-9]$ && $d =~ ^[12]$ && $h =~ ^[0-9a-fA-F]{6}$ ]] || exit 2
+    { [[ $br =~ ^[0-9]+$ ]] && (( br >= 0 && br <= 100 )); } || exit 2
+    r=$((16#${h:0:2})); g=$((16#${h:2:2})); bl=$((16#${h:4:2}))
+    echo "$m,$s,$br,$d,$r,$g,$bl" > "$KB/four_zone_mode" ;;
+  kb-bright) # change brightness, keep current colours: kb-bright <0-100>
+    KB=/sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/four_zoned_kb
+    [[ -w $KB/per_zone_mode ]] || exit 3
+    br="${2:-}"; { [[ $br =~ ^[0-9]+$ ]] && (( br >= 0 && br <= 100 )); } || exit 2
+    cur="$(cat "$KB/per_zone_mode" 2>/dev/null)"; zones="${cur%,*}"
+    [[ $zones =~ ^[0-9a-fA-F]{6}(,[0-9a-fA-F]{6}){3}$ ]] || zones="ffffff,ffffff,ffffff,ffffff"
+    echo "$zones,$br" > "$KB/per_zone_mode" ;;
+  *) echo "usage: omarchy-perf-helper {turbo|epp|platform-profile|gpu-runtime|nvidia-powerd|battery-limit|fan|kb-zone|kb-effect|kb-bright} <value...>" >&2; exit 2 ;;
 esac
 HELPER
 chmod 755 /usr/local/bin/omarchy-perf-helper

@@ -26,7 +26,9 @@ packages/  pacman-explicit.txt, aur.txt       ← package lists to reinstall
   (`Super+Alt+Space → Performance`) via `~/.config/omarchy/extensions/menu.sh`.
   Controls: power profile, thermal profile, CPU turbo, **fan mode**, GPU mode
   (envycontrol), GPU dynamic boost, **Acer 80% battery limit** (Linuwu-Sense),
-  session-restore toggle, live GPU stats, battery info. Privileged actions go
+  **4-zone keyboard RGB** (colors / effects / brightness, via Linuwu-Sense
+  `four_zoned_kb`), session-restore toggle, live GPU stats, battery info.
+  Privileged actions go
   through a small root-owned, input-validated helper with a scoped NOPASSWD rule.
 - **Session restore** — snapshots open windows + their workspaces every minute and
   reopens them on login.
