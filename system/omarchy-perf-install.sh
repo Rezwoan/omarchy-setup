@@ -255,16 +255,21 @@ echo "==> Backed up /etc/fstab -> /etc/fstab.bak.$STAMP"
 
 # Mount at boot and stay mounted (nofail = a missing/failed drive never blocks boot).
 # The drives are owned by the login user, so no password is ever needed to use them.
+# fstype ntfs-3g (userspace FUSE) is used deliberately over the kernel ntfs3
+# driver: ntfs3 REFUSES to mount a "dirty" NTFS volume rw (the state Windows Fast
+# Startup leaves them in), while ntfs-3g replays the journal and mounts it fine.
+# ntfs-3g also safely falls back to read-only for a genuinely hibernated volume.
+# Requires the `ntfs-3g` package.
 NTFS_OPTS="rw,nofail,uid=$U,gid=$G,umask=022,windows_names"
 EXFAT_OPTS="rw,nofail,uid=$U,gid=$G,umask=022"
 
 # label|uuid|fstype|mountpoint|opts   (EDIT UUIDs for a different machine)
 DRIVES=(
-  "Files|5C8275718275510E|ntfs3|/mnt/Files|$NTFS_OPTS"
-  "Dev|9C64263364261116|ntfs3|/mnt/Dev|$NTFS_OPTS"
-  "Study|1842602F426013B2|ntfs3|/mnt/Study|$NTFS_OPTS"
+  "Files|5C8275718275510E|ntfs-3g|/mnt/Files|$NTFS_OPTS"
+  "Dev|9C64263364261116|ntfs-3g|/mnt/Dev|$NTFS_OPTS"
+  "Study|1842602F426013B2|ntfs-3g|/mnt/Study|$NTFS_OPTS"
   "NewVolume|0665-C06E|exfat|/mnt/NewVolume|$EXFAT_OPTS"
-  "Windows|98CE4C2DCE4C064A|ntfs3|/mnt/Windows|$NTFS_OPTS"
+  "Windows|98CE4C2DCE4C064A|ntfs-3g|/mnt/Windows|$NTFS_OPTS"
 )
 
 added=0

@@ -56,6 +56,8 @@ cat <<'NEXT'
      # AUR (needs yay): while read p; do yay -S --needed --noconfirm "$p"; done < packages/aur.txt
    Key extras this setup relies on:
      dolphin  yazi  power-profiles-daemon  thermald
+     ntfs-3g                (mounts the NTFS data drives; kernel ntfs3 refuses
+                             dirty/Fast-Startup volumes read-write)
      envycontrol            (GPU mode switching)
      linuwu-sense-dkms      (Acer battery limit + fan control)
      oh-my-zsh + powerlevel10k   (prompt; install separately if missing)
@@ -63,6 +65,9 @@ cat <<'NEXT'
 2) Privileged bits (Performance helper + sudoers + drive automounts):
      sudo bash system/omarchy-perf-install.sh
    (Edit the drive UUIDs in that script first if this is a different machine.)
+   If NTFS drives already exist in /etc/fstab as `ntfs3` and fail to mount
+   ("volume is dirty"), switch them to ntfs-3g with:
+     sudo bash system/omarchy-ntfs-automount-fix.sh
 
 3) Load the Acer driver (battery limit / fan control):
      sudo bash system/linuwu-load.sh

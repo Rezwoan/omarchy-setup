@@ -130,6 +130,7 @@ noto-fonts-cjk
 noto-fonts-emoji
 noto-fonts-extra
 nss-mdns
+ntfs-3g
 nvidia-open-dkms
 nvidia-utils
 nwg-look
