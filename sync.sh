@@ -54,6 +54,9 @@ cp1 "$HOME/.config/systemd/user/omarchy-session-save.service" "$REPO/config/syst
 cp1 "$HOME/.config/systemd/user/omarchy-session-save.timer"   "$REPO/config/systemd/user/omarchy-session-save.timer"
 cp1 "$HOME/.local/bin/omarchy-session-save"    "$REPO/local-bin/omarchy-session-save"
 cp1 "$HOME/.local/bin/omarchy-session-restore" "$REPO/local-bin/omarchy-session-restore"
+# power-key confirm dialog + pretty keybindings menu (referenced by hypr/bindings.conf)
+cp1 "$HOME/.local/bin/omarchy-power-confirm"            "$REPO/local-bin/omarchy-power-confirm"
+cp1 "$HOME/.local/bin/omarchy-menu-keybindings-pretty" "$REPO/local-bin/omarchy-menu-keybindings-pretty"
 
 # ---- Claude Code: auto-memory + the omarchy skill (personal assistant config) ----
 CLAUDE_MEM="$HOME/.claude/projects/-home-reezz-arch/memory"

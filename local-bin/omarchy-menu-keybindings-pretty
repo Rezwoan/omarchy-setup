@@ -1,0 +1,25 @@
+#!/bin/bash
+# Keybindings guide, but with this laptop's special keys shown under friendly
+# names instead of raw keysyms:
+#   XF86Launch1  (Predator key, code:156) -> "Predator Key"
+#   XF86PowerOff (power button)           -> "Power Key"
+#
+# Wraps the stock omarchy-menu-keybindings (called by absolute path so there's
+# no recursion) and post-processes its --print output. Bound to Super+K and used
+# by the Learn menu. Replacements are length-matched so column alignment holds.
+set -u
+
+REAL="$HOME/.local/share/omarchy/bin/omarchy-menu-keybindings"
+
+prettify() {
+  sed -e 's/XF86Launch1 /Predator Key/' \
+      -e 's/XF86PowerOff /Power Key    /'
+}
+
+if [[ ${1:-} == "--print" || ${1:-} == "-p" ]]; then
+  "$REAL" --print | prettify
+else
+  mh=$(hyprctl monitors -j | jq -r '.[] | select(.focused==true) | .height' 2>/dev/null)
+  [[ $mh =~ ^[0-9]+$ ]] || mh=1000
+  "$REAL" --print | prettify | walker --dmenu -p 'Keybindings' --width 800 --height "$(( mh * 40 / 100 ))"
+fi

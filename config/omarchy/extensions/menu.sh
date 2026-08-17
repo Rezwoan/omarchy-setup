@@ -8,6 +8,15 @@ PERF_HELPER="/usr/local/bin/omarchy-perf-helper"
 PERF_SESSION_FLAG="$HOME/.config/omarchy/session-restore.enabled"
 PERF_SESSION_SAVE="$HOME/.local/bin/omarchy-session-save"
 
+# ---------- keybindings menu: show the Predator key by name ----------
+# The Predator key is kernel keycode 148 -> Hyprland code:156, which the keymap
+# resolves to the keysym "XF86Launch1" — so the stock keybindings menu lists it
+# as "XF86Launch1". omarchy-menu sources THIS file before it calls
+# omarchy-menu-keybindings, so this shell function shadows that binary *inside
+# omarchy-menu only* (we still invoke the real one by absolute path). No edit to
+# omarchy's source; survives `omarchy update`. Renames the label to "Predator Key".
+omarchy-menu-keybindings() { omarchy-menu-keybindings-pretty "$@"; }
+
 # ---------- state readers (all defensive; never fail the menu) ----------
 _perf_profile()   { powerprofilesctl get 2>/dev/null || echo "unknown"; }
 _perf_turbo()     { case "$(cat /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null)" in

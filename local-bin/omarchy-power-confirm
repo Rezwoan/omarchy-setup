@@ -1,0 +1,22 @@
+#!/bin/bash
+# Ask for confirmation before a power action, so a stray keypress can't shut the
+# machine down. On "Yes" it hands off to omarchy's graceful shutdown/reboot,
+# which close application windows cleanly first (unlike raw `systemctl poweroff`).
+#
+#   omarchy-power-confirm shutdown
+#   omarchy-power-confirm reboot
+set -u
+
+case "${1:-}" in
+  shutdown) prompt="Shut down?"; run="omarchy-system-shutdown" ;;
+  reboot)   prompt="Restart?";   run="omarchy-system-reboot"   ;;
+  *) echo "usage: $0 <shutdown|reboot>" >&2; exit 2 ;;
+esac
+
+# "No" first so the default highlight / a stray Enter cancels safely.
+choice=$(omarchy-menu-select "$prompt" "  No" "  Yes" 2>/dev/null || true)
+
+case "$choice" in
+  *Yes*) exec $run ;;
+  *)     exit 0 ;;
+esac
