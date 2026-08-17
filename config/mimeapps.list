@@ -1,4 +1,3 @@
-
 [Default Applications]
 text/plain=code.desktop
 text/english=nvim.desktop
@@ -94,3 +93,6 @@ application/epub+zip=com.github.johnfactotum.Foliate.desktop
 application/x-mobipocket-ebook=com.github.johnfactotum.Foliate.desktop
 application/vnd.comicbook+zip=com.github.johnfactotum.Foliate.desktop
 application/vnd.comicbook-rar=com.github.johnfactotum.Foliate.desktop
+x-scheme-handler/claude=com.anthropic.Claude.desktop
+
+[Added Associations]

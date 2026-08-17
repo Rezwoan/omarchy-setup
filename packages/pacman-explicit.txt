@@ -21,6 +21,7 @@ btop
 btrfs-progs
 chromium
 clang
+claude-desktop-extra
 cliamp
 cloudflared
 cups
@@ -32,9 +33,11 @@ docker
 docker-buildx
 docker-compose
 dolphin
+dosbox
 dosfstools
 dotnet-runtime-9.0
 dust
+edk2-ovmf
 efibootmgr
 envycontrol
 evince
@@ -82,6 +85,7 @@ inetutils
 intel-lpmd
 intel-media-driver
 intel-ucode
+intel-undervolt
 inxi
 iwd
 jetbrains-toolbox
@@ -154,6 +158,7 @@ power-profiles-daemon
 python-gobject
 python-poetry-core
 python-terminaltexteffects
+qemu-system-x86
 qt5-wayland
 ripgrep
 ruby
@@ -187,6 +192,7 @@ ttf-ia-writer
 ttf-jetbrains-mono-nerd
 typora
 tzupdate
+uasm
 ufw
 ufw-docker
 unrar
@@ -194,6 +200,7 @@ unzip
 usage
 uwsm
 vim
+virtiofsd
 visual-studio-code-bin
 vnstat
 vpl-gpu-rt

@@ -25,6 +25,9 @@ _perf_battlimit() { local b; b="$(_perf_ls_base)"; [[ -n $b && -r $b/battery_lim
 _perf_fan()       { local b v; b="$(_perf_ls_base)"; [[ -n $b && -r $b/fan_speed ]] && { v="$(cat "$b"/fan_speed 2>/dev/null)"; [[ -z $v || $v == 0* ]] && echo auto || echo "$v"; } || echo n/a; }
 _perf_thermal()   { cat /sys/firmware/acpi/platform_profile 2>/dev/null || echo n/a; }
 _perf_cpucap()    { local p; p=$(cat /sys/devices/system/cpu/intel_pstate/max_perf_pct 2>/dev/null); [[ -n $p ]] && echo "${p}%" || echo n/a; }
+_perf_powerlimit(){ local u; u=$(cat /sys/class/powercap/intel-rapl:0/constraint_0_power_limit_uw 2>/dev/null); [[ -n $u ]] && echo "$(( u/1000000 ))W" || echo n/a; }
+_perf_preset()    { local p; p=$(cat /var/lib/omarchy-perf/profile 2>/dev/null); case "$p" in
+                      ultra) echo "Ultra Saver" ;; balanced) echo "Balanced" ;; performance) echo "Performance" ;; *) echo "custom" ;; esac; }
 _perf_cpucores()  { # report core state: all / no-HT / E-cores (n/total)
   local total online smt
   total=$(ls -d /sys/devices/system/cpu/cpu[0-9]* 2>/dev/null | wc -l)
@@ -39,17 +42,20 @@ _perf_cpucores()  { # report core state: all / no-HT / E-cores (n/total)
 
 # ---------- Performance main submenu ----------
 show_performance_menu() {
-  local profile turbo gpu powerd session batt thermal fan battlimit cpucap cpucores
+  local profile turbo gpu powerd session batt thermal fan battlimit cpucap cpucores preset
   profile="$(_perf_profile)"; turbo="$(_perf_turbo)"; gpu="$(_perf_gpu_mode)"
   powerd="$(_perf_powerd)"; session="$(_perf_session)"; batt="$(_perf_batt)"
   thermal="$(_perf_thermal)"; fan="$(_perf_fan)"; battlimit="$(_perf_battlimit)"
-  cpucap="$(_perf_cpucap)"; cpucores="$(_perf_cpucores)"
+  cpucap="$(_perf_cpucap)"; cpucores="$(_perf_cpucores)"; powerlimit="$(_perf_powerlimit)"
+  preset="$(_perf_preset)"
 
-  local options="󱐋  Power Profile   ·   ${profile}"
+  local options="⚡  Power Preset   ·   ${preset}"
+  options="$options\n󱐋  Power Profile   ·   ${profile}"
   options="$options\n󰔏  Thermal Profile   ·   ${thermal}"
   options="$options\n󰓅  CPU Turbo Boost   ·   ${turbo}"
   options="$options\n󰾆  CPU Max Freq   ·   ${cpucap}"
   options="$options\n󰬹  CPU Cores   ·   ${cpucores}"
+  options="$options\n󰚥  Power Limit   ·   ${powerlimit}"
   options="$options\n󰈐  Fan Mode   ·   ${fan}"
   options="$options\n󰢮  GPU Mode   ·   ${gpu}"
   options="$options\n󱩓  GPU Dynamic Boost   ·   ${powerd/inactive/off}"
@@ -60,11 +66,13 @@ show_performance_menu() {
   options="$options\n󰁹  Battery Info   ·   ${batt}"
 
   case $(menu "Performance" "$options") in
+  *"Power Preset"*)     show_perf_preset_menu ;;
   *"Power Profile"*)    show_perf_profile_menu ;;
   *"Thermal Profile"*)  show_perf_thermal_menu ;;
   *"CPU Turbo"*)        _perf_toggle_turbo ;;
   *"CPU Max Freq"*)     show_perf_cpucap_menu ;;
   *"CPU Cores"*)        show_perf_cpucores_menu ;;
+  *"Power Limit"*)      show_perf_powerlimit_menu ;;
   *"Fan Mode"*)         show_perf_fan_menu ;;
   *"GPU Mode"*)         show_perf_gpu_menu ;;
   *"Dynamic Boost"*)    _perf_toggle_powerd ;;
@@ -75,6 +83,33 @@ show_performance_menu() {
   *"Battery Info"*)     _perf_battery_info ;;
   *)                    back_to show_main_menu ;;
   esac
+}
+
+# ---------- Power presets (one-tap bundles; remembered across reboot) ----------
+# Each preset sets CPU cores/boost/freq, RAPL wattage, thermal profile, keyboard
+# light and screen brightness in one shot, then persists the choice to
+# /var/lib/omarchy-perf/profile so omarchy-perf-restore.service re-applies it on boot.
+show_perf_preset_menu() {
+  local cur; cur="$(_perf_preset)"
+  local opts="🐢  Ultra Power Saver   (E-cores · 20W · dark)"
+  opts="$opts\n⚖  Balanced   (default)"
+  opts="$opts\n🚀  Performance   (max power)"
+  case $(menu "Power Preset  ·  now: ${cur}" "$opts") in
+  *"Ultra"*)
+     _perf_helper profile ultra
+     _perf_notify "Ultra Power Saver" "E-cores only · no boost · 20W · min freq · screen+keyboard dark"
+     ;;
+  *"Balanced"*)
+     _perf_helper profile balanced "$(_perf_theme_hex)"
+     _perf_notify "Balanced" "All cores · boost on · 65W · everyday defaults"
+     ;;
+  *"Performance"*)
+     _perf_helper profile performance "$(_perf_theme_hex)"
+     _perf_notify "Performance" "All cores · boost on · full power"
+     ;;
+  *) show_performance_menu; return ;;
+  esac
+  show_performance_menu
 }
 
 # ---------- Power profile (power-profiles-daemon, no root needed) ----------
@@ -166,6 +201,22 @@ show_perf_cpucores_menu() {
   *"All cores"*)  _perf_helper cpu-cores all;    _perf_notify "CPU Cores" "All cores online" ;;
   *"No Hyper"*)   _perf_helper cpu-cores no-smt; _perf_notify "CPU Cores" "Hyperthreading disabled" ;;
   *"E-cores"*)    _perf_helper cpu-cores ecore;  _perf_notify "CPU Cores" "P-cores offlined — running on E-cores" ;;
+  *) ;;
+  esac
+  show_performance_menu
+}
+
+# ---------- RAPL package power limit (PL1 sustained / PL2 burst) ----------
+show_perf_powerlimit_menu() {
+  [[ -e /sys/class/powercap/intel-rapl:0/constraint_0_power_limit_uw ]] || {
+    _perf_notify "Power Limit" "RAPL not available"; show_performance_menu; return; }
+  # label   pl1  pl2
+  local opts="󰚥  Full   (65W · stock)\n󰛨  45W   (balanced)\n󰋊  35W   (cool/quiet)\n󰁿  25W   (max battery)"
+  case $(menu "Power Limit  ·  sustained wattage" "$opts") in
+  *Full*) _perf_helper power-limit 65 157; _perf_notify "Power Limit" "65W — stock" ;;
+  *45W*)  _perf_helper power-limit 45 64;  _perf_notify "Power Limit" "Capped to 45W" ;;
+  *35W*)  _perf_helper power-limit 35 45;  _perf_notify "Power Limit" "Capped to 35W — cool" ;;
+  *25W*)  _perf_helper power-limit 25 35;  _perf_notify "Power Limit" "Capped to 25W — max battery" ;;
   *) ;;
   esac
   show_performance_menu

@@ -183,7 +183,7 @@
     "exec": "~/.config/waybar/net_monitor.sh",
     "return-type": "json",
     "format": "{}",
-    "interval": 1,
-    "tooltip": false
+    "interval": 2,
+    "tooltip": true
   }
 }

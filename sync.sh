@@ -55,6 +55,13 @@ cp1 "$HOME/.config/systemd/user/omarchy-session-save.timer"   "$REPO/config/syst
 cp1 "$HOME/.local/bin/omarchy-session-save"    "$REPO/local-bin/omarchy-session-save"
 cp1 "$HOME/.local/bin/omarchy-session-restore" "$REPO/local-bin/omarchy-session-restore"
 
+# ---- Claude Code: auto-memory + the omarchy skill (personal assistant config) ----
+CLAUDE_MEM="$HOME/.claude/projects/-home-reezz-arch/memory"
+cp1 "$CLAUDE_MEM/MEMORY.md"                     "$REPO/claude/memory/MEMORY.md"
+cp1 "$CLAUDE_MEM/machine-hardware-setup.md"     "$REPO/claude/memory/machine-hardware-setup.md"
+cp1 "$CLAUDE_MEM/omarchy-setup-repo.md"         "$REPO/claude/memory/omarchy-setup-repo.md"
+cp1 "$HOME/.claude/skills/omarchy/SKILL.md"     "$REPO/claude/skills/omarchy/SKILL.md"
+
 # ---- package lists ----
 pacman -Qqe > "$REPO/packages/pacman-explicit.txt"
 pacman -Qqm > "$REPO/packages/aur.txt"

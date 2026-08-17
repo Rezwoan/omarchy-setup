@@ -1,5 +1,6 @@
 ab-download-manager-bin
 archnote
+claude-desktop-extra
 debtap
 envycontrol
 ffmpeg7.1

@@ -1,0 +1,2 @@
+- [omarchy-setup-repo](omarchy-setup-repo.md) — public GitHub restore repo (Rezwoan/omarchy-setup) for this Omarchy machine
+- [machine-hardware-setup](machine-hardware-setup.md) — Acer Predator PHN16-71 hardware + custom power/GPU/battery/file-manager tooling

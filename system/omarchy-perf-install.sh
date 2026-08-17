@@ -31,6 +31,14 @@ case "$cmd" in
       off) echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo ;;
       *) exit 2 ;;
     esac ;;
+  power-limit) # RAPL package cap:  power-limit <pl1_watts> <pl2_watts>
+    R=/sys/class/powercap/intel-rapl:0
+    [[ -w $R/constraint_0_power_limit_uw ]] || exit 3
+    pl1="${2:-}"; pl2="${3:-}"
+    [[ $pl1 =~ ^[0-9]+$ && $pl2 =~ ^[0-9]+$ ]] || exit 2
+    { (( pl1 >= 10 && pl1 <= 65 && pl2 >= 10 && pl2 <= 157 && pl2 >= pl1 )); } || exit 2
+    echo $(( pl1 * 1000000 )) > "$R/constraint_0_power_limit_uw" || exit 3
+    echo $(( pl2 * 1000000 )) > "$R/constraint_1_power_limit_uw" 2>/dev/null || true ;;
   cpu-cap)   # underclock: cap max CPU frequency to a percentage (20-100)
     f=/sys/devices/system/cpu/intel_pstate/max_perf_pct
     [[ -w $f ]] || exit 3
@@ -142,7 +150,61 @@ case "$cmd" in
     cur="$(cat "$KB/per_zone_mode" 2>/dev/null)"; zones="${cur%,*}"
     [[ $zones =~ ^[0-9a-fA-F]{6}(,[0-9a-fA-F]{6}){3}$ ]] || zones="ffffff,ffffff,ffffff,ffffff"
     echo "$zones,$br" > "$KB/per_zone_mode" ;;
-  *) echo "usage: omarchy-perf-helper {turbo|cpu-cap|cpu-cores|epp|platform-profile|gpu-runtime|nvidia-powerd|battery-limit|fan|kb-zone|kb-effect|kb-bright} <value...>" >&2; exit 2 ;;
+  brightness) # screen backlight as a percentage: brightness <0-100>
+    pct="${2:-}"
+    [[ $pct =~ ^[0-9]+$ ]] || exit 2
+    (( pct <= 100 )) || exit 2
+    for b in /sys/class/backlight/*/; do
+      [[ -w $b/brightness && -r $b/max_brightness ]] || continue
+      max="$(cat "$b/max_brightness")"; [[ $max =~ ^[0-9]+$ && $max -gt 0 ]] || continue
+      raw=$(( max * pct / 100 ))
+      # never fully black the panel: keep a faint ~2% floor for any pct>0
+      floor=$(( max / 50 )); (( floor < 1 )) && floor=1
+      (( pct > 0 && raw < floor )) && raw=$floor
+      echo "$raw" > "$b/brightness" 2>/dev/null || true
+    done ;;
+  profile) # apply a named power preset, then remember it: profile <name> [kb_hex]
+    name="${2:-}"; kbhex="${3:-ffffff}"
+    [[ $kbhex =~ ^[0-9a-fA-F]{6}$ ]] || kbhex=ffffff
+    case "$name" in
+      ultra)        # max battery: E-cores only, no boost, min freq, 20W, dark, quiet
+        "$0" cpu-cores ecore            || true
+        "$0" turbo off                  || true
+        "$0" cpu-cap 20                 || true
+        "$0" power-limit 20 20          || true
+        "$0" platform-profile low-power || true
+        "$0" epp power                  || true
+        "$0" kb-bright 0                || true
+        "$0" brightness 1               || true ;;
+      balanced)     # everyday defaults
+        "$0" cpu-cores all              || true
+        "$0" turbo on                   || true
+        "$0" cpu-cap 100                || true
+        "$0" power-limit 65 157         || true
+        "$0" platform-profile balanced  || true
+        "$0" epp balance_performance    || true
+        "$0" kb-zone "$kbhex" 100       || true
+        "$0" brightness 60              || true ;;
+      performance)  # plugged-in / max power
+        "$0" cpu-cores all              || true
+        "$0" turbo on                   || true
+        "$0" cpu-cap 100                || true
+        "$0" power-limit 65 157         || true
+        "$0" platform-profile performance || true
+        "$0" epp performance            || true
+        "$0" kb-zone "$kbhex" 100       || true
+        "$0" brightness 90              || true ;;
+      *) exit 2 ;;
+    esac
+    install -d -m 755 /var/lib/omarchy-perf 2>/dev/null || true
+    printf '%s\n' "$name"  > /var/lib/omarchy-perf/profile 2>/dev/null || true
+    printf '%s\n' "$kbhex" > /var/lib/omarchy-perf/kbhex   2>/dev/null || true ;;
+  apply-saved) # re-apply the remembered profile (run at boot by the restore service)
+    p="$(cat /var/lib/omarchy-perf/profile 2>/dev/null)" || exit 0
+    h="$(cat /var/lib/omarchy-perf/kbhex   2>/dev/null)" || h=ffffff
+    [[ -n $p ]] || exit 0
+    exec "$0" profile "$p" "$h" ;;
+  *) echo "usage: omarchy-perf-helper {turbo|cpu-cap|cpu-cores|power-limit|epp|platform-profile|gpu-runtime|nvidia-powerd|battery-limit|fan|kb-zone|kb-effect|kb-bright|brightness|profile|apply-saved} <value...>" >&2; exit 2 ;;
 esac
 HELPER
 chmod 755 /usr/local/bin/omarchy-perf-helper
@@ -162,13 +224,39 @@ else
   echo "!! sudoers validation FAILED — removing"; rm -f /etc/sudoers.d/omarchy-perf; exit 1
 fi
 
+# ------------------------------------------------------------------ profile persistence
+# State dir holds the last-selected power profile so it survives reboot/poweroff.
+install -d -m 755 /var/lib/omarchy-perf
+chown root:root /var/lib/omarchy-perf
+
+# Boot-time restore service: re-applies the remembered profile on every boot.
+cat > /etc/systemd/system/omarchy-perf-restore.service <<'UNIT'
+[Unit]
+Description=Restore last-selected Omarchy power profile
+# Wait until CPU/RAPL/backlight/acer-wmi sysfs is all present.
+After=multi-user.target
+ConditionPathExists=/var/lib/omarchy-perf/profile
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/omarchy-perf-helper apply-saved
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable omarchy-perf-restore.service >/dev/null 2>&1 || true
+echo "==> Installed + enabled omarchy-perf-restore.service (remembers last profile)"
+
 # ------------------------------------------------------------------ fstab automounts
 STAMP="$(date +%s)"
 cp /etc/fstab "/etc/fstab.bak.$STAMP"
 echo "==> Backed up /etc/fstab -> /etc/fstab.bak.$STAMP"
 
-NTFS_OPTS="rw,nofail,x-systemd.automount,x-systemd.idle-timeout=60,uid=$U,gid=$G,umask=022,windows_names"
-EXFAT_OPTS="rw,nofail,x-systemd.automount,x-systemd.idle-timeout=60,uid=$U,gid=$G,umask=022"
+# Mount at boot and stay mounted (nofail = a missing/failed drive never blocks boot).
+# The drives are owned by the login user, so no password is ever needed to use them.
+NTFS_OPTS="rw,nofail,uid=$U,gid=$G,umask=022,windows_names"
+EXFAT_OPTS="rw,nofail,uid=$U,gid=$G,umask=022"
 
 # label|uuid|fstype|mountpoint|opts   (EDIT UUIDs for a different machine)
 DRIVES=(
