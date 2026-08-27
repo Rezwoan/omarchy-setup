@@ -1,18 +1,20 @@
 ---
 name: machine-hardware-setup
-description: "This machine's hardware and the custom system tooling built on it"
+description: "This machine's hardware, running Omarchy 4.0.1+ (omarchy-shell), and the custom tooling built on it"
 metadata: 
   node_type: memory
   type: project
-  originSessionId: 97db5c87-566d-47af-9b02-f3292351c511
-  modified: 2026-08-02T00:14:44.266Z
+  originSessionId: 4d5fc693-0e17-4e1e-bce2-dc9c3fcf855e
+  modified: 2026-08-27T09:52:00.229Z
 ---
 
-Machine: **Acer Predator Helios Neo 16 (PHN16-71)** — i5-13500HX, NVIDIA RTX 4050 (Optimus), dual NVMe, Omarchy (Arch + Hyprland, uwsm), zsh, user `reezz-arch` (uid 1000), sudo needs password.
+Machine: **Acer Predator Helios Neo 16 (PHN16-71)** — i5-13500HX (6P+8E, hybrid), NVIDIA RTX 4050 (Optimus), dual NVMe, 1920x1200@165 internal display at 1.25x scale. Omarchy (Arch + Hyprland, via uwsm), user `rex` (uid 1000), sudo needs a password. Reinstalled fresh 2026-08-27 on the same physical hardware as a prior install (old repo was for that install's setup).
 
-Custom setup built (all in [[omarchy-setup-repo]]):
-- **Performance control center** in `Super+Alt+Space` menu via `~/.config/omarchy/extensions/menu.sh` (omarchy's extension hook). Controls power profile (power-profiles-daemon), thermal profile, CPU turbo, fan, GPU mode, GPU dynamic boost, battery limit, session restore. Privileged actions via `/usr/local/bin/omarchy-perf-helper` (root-owned, scoped NOPASSWD sudoers `/etc/sudoers.d/omarchy-perf`).
-- **GPU**: `envycontrol` for Integrated/Hybrid/Nvidia mode switching (was set to integrated = dGPU off).
-- **Acer battery limit + fan control**: `linuwu-sense-dkms` (module `linuwu_sense`, replaces `acer_wmi` via blacklist in `/etc/modprobe.d/linuwu-sense.conf`). Charge limit is a fixed ~80% health-mode toggle, not arbitrary %. Battery is worn to ~80% design capacity.
-- **File managers**: Dolphin (GUI default, Hackerman dark theme) + yazi (TUI). Removed nautilus/spacedrive.
-- **Drives**: internal NTFS (Files/Dev/Study/Windows) + exFAT (NewVolume) auto-mount via fstab `x-systemd.automount` at `/mnt/*` (ntfs3, nofail). NTFS folders from Windows carry the read-only DOS attribute (ntfs3 blocks writes) — fix with `chmod -R u+w /mnt/<drive>`.
+Omarchy is on the **omarchy-shell** architecture (v4.0.1+): a single long-running Quickshell process (`omarchy-shell`) hosts the bar, notifications, panels — waybar/walker/mako no longer exist. Hyprland config is Lua (`~/.config/hypr/*.lua`), not `.conf`. See [[omarchy-setup-repo]] for the restore repo.
+
+Custom setup built this session (all in [[omarchy-setup-repo]]):
+- **Performance plugin** — a real omarchy-shell bar-widget plugin (not a menu extension like the old setup) at `~/.config/omarchy/plugins/io.github.rezwoan.performance/`, ported from the old walker-menu "Performance" control center. See [[performance-plugin]] for the architecture and hard-won lessons.
+- **linuwu-sense-dkms**: installed via AUR, but its kernel module needs a one-time hot-swap from the stock `acer_wmi` driver — see the plugin's `enable-keyboard.sh` (`modprobe -r acer_wmi && modprobe linuwu_sense` + blacklist config). Unlocks keyboard RGB + 80% battery charge limit + fan control.
+- **envycontrol**: not installed yet on this machine — GPU-mode switching (Integrated/Hybrid/Nvidia) in the plugin stays hidden until it is.
+- **zsh + oh-my-zsh + Powerlevel10k**: restored as the login shell. Gotcha: `chsh` updates `/etc/passwd` immediately, but a running graphical session's systemd --user manager caches `SHELL` from login time — `systemctl --user set-environment SHELL=/usr/bin/zsh` patches it live without a reboot; a real reboot fixes it permanently via PAM.
+- **Fn+F6 / "Predator key"**: on this unit, `hyprctl binds` proves the Predator-adjacent function key IS `XF86MonBrightnessUp` at the Hyprland level (same raw evdev code, keycode 148 / Hyprland `code:156`) — there's no separate hardware signal to bind a shortcut to. The Performance panel is bar-icon-only, no keybind.

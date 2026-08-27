@@ -1,5 +1,6 @@
 #MY Own #
 alias cls='clear'
+alias py='python'
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
@@ -114,5 +115,5 @@ source $ZSH/oh-my-zsh.sh
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-export PATH="$PATH:/home/reezz-arch/.npm/_npx/d07ada7b4a99c96e/node_modules/.bin"
-export PATH="$HOME/.local/bin:$PATH"
+
+. "$HOME/.local/share/../bin/env"

@@ -2,6 +2,9 @@
 # Restore this Omarchy setup on a fresh machine.
 #   ./install.sh            # copy configs into place (backs up anything it overwrites)
 # Then follow the printed steps for packages + the privileged (sudo) parts.
+#
+# Targets Omarchy 4.0.1+ (the omarchy-shell / Lua-hypr-config era). See
+# README.md's Compatibility section if you're restoring onto an older Omarchy.
 
 set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,11 +33,14 @@ for f in .zshrc .bashrc .bash_profile .p10k.zsh; do
   [[ -f $REPO/shell/$f ]] && copy "$REPO/shell/$f" "$HOME/$f"
 done
 
-# ---- ~/.config/ ----
+# ---- ~/.config/ (walks the whole tree: hypr/*.lua, foot, alacritty, kitty,
+#      ghostty, the omarchy/plugins/io.github.rezwoan.performance plugin,
+#      systemd/user units — whatever's actually under config/) ----
 while IFS= read -r -d '' src; do
   rel="${src#$REPO/config/}"
   copy "$src" "$HOME/.config/$rel"
 done < <(find "$REPO/config" -type f -print0)
+chmod +x "$HOME/.config/omarchy/plugins/io.github.rezwoan.performance/"*.sh 2>/dev/null || true
 
 # ---- ~/.local/bin/ ----
 install -d "$HOME/.local/bin"
@@ -44,39 +50,50 @@ for f in "$REPO"/local-bin/*; do
   chmod +x "$HOME/.local/bin/$(basename "$f")"
 done
 
-# ---- systemd user units ----
 systemctl --user daemon-reload 2>/dev/null || true
 
 say "Config files restored."
 cat <<'NEXT'
 
 ────────────────────────── NEXT STEPS ──────────────────────────
-1) Install packages you had (review first, they include AUR):
+1) Install packages you had (review first, it includes AUR):
      sudo pacman -S --needed - < packages/pacman-explicit.txt
      # AUR (needs yay): while read p; do yay -S --needed --noconfirm "$p"; done < packages/aur.txt
    Key extras this setup relies on:
-     dolphin  yazi  power-profiles-daemon  thermald
-     ntfs-3g                (mounts the NTFS data drives; kernel ntfs3 refuses
-                             dirty/Fast-Startup volumes read-write)
-     envycontrol            (GPU mode switching)
-     linuwu-sense-dkms      (Acer battery limit + fan control)
-     oh-my-zsh + powerlevel10k   (prompt; install separately if missing)
+     zsh zsh-completions          (oh-my-zsh + powerlevel10k installed separately, see below)
+     ntfs-3g                      (mounts the NTFS data drives, if you use system/)
+     envycontrol                  (GPU-mode switching in the Performance plugin)
+     linuwu-sense-dkms            (Acer battery limit / fan / keyboard RGB)
 
-2) Privileged bits (Performance helper + sudoers + drive automounts):
-     sudo bash system/omarchy-perf-install.sh
-   (Edit the drive UUIDs in that script first if this is a different machine.)
-   If NTFS drives already exist in /etc/fstab as `ntfs3` and fail to mount
-   ("volume is dirty"), switch them to ntfs-3g with:
-     sudo bash system/omarchy-ntfs-automount-fix.sh
+2) oh-my-zsh + Powerlevel10k (not packaged; .zshrc expects both):
+     git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git ~/.oh-my-zsh
+     git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
+       ~/.oh-my-zsh/custom/themes/powerlevel10k
+     chsh -s /usr/bin/zsh
+   If a terminal opened in the SAME login session still shows bash after
+   chsh, that session's systemd --user manager cached the old shell —
+   `systemctl --user set-environment SHELL=/usr/bin/zsh` fixes it live,
+   or just log out/in.
 
-3) Load the Acer driver (battery limit / fan control):
-     sudo bash system/linuwu-load.sh
+3) Enable the Performance plugin and install its privileged helper:
+     omarchy plugin enable io.github.rezwoan.performance --section right
+     sudo bash ~/.config/omarchy/plugins/io.github.rezwoan.performance/install-helper.sh
+   Read that plugin's own README.md for what each piece does. If you have
+   an Acer with linuwu-sense-dkms installed but its module never loaded
+   (check `lsmod | grep linuwu`), also run:
+     sudo bash ~/.config/omarchy/plugins/io.github.rezwoan.performance/enable-keyboard.sh
 
-4) Enable "session restore" (reopen apps on login), optional:
+4) Drive automounts + NTFS fixes (only if this is the original machine —
+   edit the UUIDs in system/fix-drive-mounts.sh for a different one):
+     sudo bash system/fix-drive-mounts.sh
+     sudo bash system/omarchy-ntfs-automount-fix.sh   # only if a drive shows "dirty" and won't mount rw
+
+5) Enable "session restore" (reopen apps on login) from the Performance
+   plugin's General tab, or manually:
      touch ~/.config/omarchy/session-restore.enabled
-     systemctl --user enable --now omarchy-session-save.timer
+     systemctl --user enable --now omarchy-perf-session-save.timer
 
-5) Re-log into Hyprland (or `hyprctl reload`) so keybinds/autostart apply.
-   The Performance menu appears in Super+Alt+Space automatically.
+6) `omarchy restart shell` (bar/plugins) and `hyprctl reload` (keybinds) —
+   or just re-log into Hyprland — so everything picks up.
 ─────────────────────────────────────────────────────────────────
 NEXT

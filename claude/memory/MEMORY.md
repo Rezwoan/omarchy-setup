@@ -1,2 +1,4 @@
-- [omarchy-setup-repo](omarchy-setup-repo.md) — public GitHub restore repo (Rezwoan/omarchy-setup) for this Omarchy machine
-- [machine-hardware-setup](machine-hardware-setup.md) — Acer Predator PHN16-71 hardware + custom power/GPU/battery/file-manager tooling
+- [omarchy-setup-repo](omarchy-setup-repo.md) — public GitHub restore repo (Rezwoan/omarchy-setup), rebuilt for omarchy-shell
+- [machine-hardware-setup](machine-hardware-setup.md) — Acer Predator PHN16-71, Omarchy 4.0.1+ (omarchy-shell), custom tooling
+- [performance-plugin](performance-plugin.md) — Performance bar-widget plugin architecture + hard-won QML/Quickshell lessons
+- [feedback-explicit-commands](feedback-explicit-commands.md) — always give the full copy-pasteable command for steps the user must run themselves

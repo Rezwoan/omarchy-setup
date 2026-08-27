@@ -1,0 +1,6 @@
+[Unit]
+Description=Snapshot open windows for Performance plugin session restore
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-perf-session-save
