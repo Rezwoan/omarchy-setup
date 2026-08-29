@@ -40,6 +40,10 @@ cmd="${1:-}"; val="${2:-}"
 case "$cmd" in
   turbo|cpu-cap|cpu-cores|power-limit|platform-profile|fan|nvidia-powerd)
     [[ -n "${OMARCHY_PERF_INTERNAL:-}" ]] || rm -f /var/lib/omarchy-perf/profile 2>/dev/null || true ;;
+  kb-zone|kb-effect)
+    # A manual color/effect pick — as opposed to kb-link or profile applying
+    # one on your behalf — means you no longer want the keyboard synced.
+    [[ -n "${OMARCHY_PERF_INTERNAL:-}" ]] || rm -f /var/lib/omarchy-perf/kblink 2>/dev/null || true ;;
 esac
 
 case "$cmd" in
@@ -150,6 +154,31 @@ case "$cmd" in
     cur="$(cat "$KB/per_zone_mode" 2>/dev/null)"; zones="${cur%,*}"
     [[ $zones =~ ^[0-9a-fA-F]{6}(,[0-9a-fA-F]{6}){3}$ ]] || zones="ffffff,ffffff,ffffff,ffffff"
     echo "$zones,$br" > "$KB/per_zone_mode" ;;
+  kb-link) # keep keyboard color synced to theme/profile across preset changes: kb-link <theme|profile|off> [theme_hex]
+    mode="${2:-}"; kbhex="${3:-ffffff}"
+    [[ $kbhex =~ ^[0-9a-fA-F]{6}$ ]] || kbhex=ffffff
+    install -d -m 755 /var/lib/omarchy-perf 2>/dev/null || true
+    case "$mode" in
+      off) rm -f /var/lib/omarchy-perf/kblink ;;
+      theme)
+        printf 'theme\n' > /var/lib/omarchy-perf/kblink 2>/dev/null || true
+        export OMARCHY_PERF_INTERNAL=1
+        "$0" kb-zone "$kbhex" 100 || true
+        unset OMARCHY_PERF_INTERNAL ;;
+      profile)
+        printf 'profile\n' > /var/lib/omarchy-perf/kblink 2>/dev/null || true
+        preset="$(cat /var/lib/omarchy-perf/profile 2>/dev/null)"
+        case "$preset" in
+          ultra|saver) hex=33ff77 ;;
+          performance|ultra-performance) hex=ff00ea ;;
+          balanced) hex=3b82f6 ;;
+          *) hex="$kbhex" ;;
+        esac
+        export OMARCHY_PERF_INTERNAL=1
+        "$0" kb-zone "$hex" 100 || true
+        unset OMARCHY_PERF_INTERNAL ;;
+      *) exit 2 ;;
+    esac ;;
   brightness) # screen backlight as a percentage: brightness <0-100>
     pct="${2:-}"
     [[ $pct =~ ^[0-9]+$ ]] || exit 2
@@ -165,6 +194,10 @@ case "$cmd" in
   profile) # apply a named power preset, then remember it: profile <name> [kb_hex]
     name="${2:-}"; kbhex="${3:-ffffff}"
     [[ $kbhex =~ ^[0-9a-fA-F]{6}$ ]] || kbhex=ffffff
+    # Only touch the keyboard on a preset change if a kb-link mode is active
+    # (see the kb-link verb) — otherwise leave whatever custom color/effect
+    # the user picked alone.
+    link="$(cat /var/lib/omarchy-perf/kblink 2>/dev/null)"
     export OMARCHY_PERF_INTERNAL=1
     case "$name" in
       ultra)
@@ -192,7 +225,10 @@ case "$cmd" in
         "$0" power-limit 65 157         || true
         "$0" platform-profile balanced  || true
         "$0" fan auto                   || true
-        "$0" kb-zone "$kbhex" 100       || true
+        case "$link" in
+          theme)   "$0" kb-zone "$kbhex" 100 || true ;;
+          profile) "$0" kb-zone 3b82f6   100 || true ;;
+        esac
         "$0" brightness 60              || true ;;
       performance)
         "$0" cpu-cores all              || true
@@ -201,7 +237,10 @@ case "$cmd" in
         "$0" power-limit 65 157         || true
         "$0" platform-profile performance || true
         "$0" fan auto                   || true
-        "$0" kb-zone "$kbhex" 100       || true
+        case "$link" in
+          theme)   "$0" kb-zone "$kbhex" 100 || true ;;
+          profile) "$0" kb-zone ff00ea   100 || true ;;
+        esac
         "$0" brightness 90              || true ;;
       ultra-performance)
         "$0" cpu-cores all              || true
@@ -211,7 +250,10 @@ case "$cmd" in
         "$0" platform-profile performance || true
         "$0" nvidia-powerd on           || true
         "$0" fan 100                    || true
-        "$0" kb-zone "$kbhex" 100       || true
+        case "$link" in
+          theme)   "$0" kb-zone "$kbhex" 100 || true ;;
+          profile) "$0" kb-zone ff00ea   100 || true ;;
+        esac
         "$0" brightness 100             || true ;;
       *) exit 2 ;;
     esac
@@ -224,7 +266,7 @@ case "$cmd" in
     h="$(cat /var/lib/omarchy-perf/kbhex   2>/dev/null)" || h=ffffff
     [[ -n $p ]] || exit 0
     exec "$0" profile "$p" "$h" ;;
-  *) echo "usage: omarchy-perf-helper {turbo|cpu-cap|cpu-cores|power-limit|platform-profile|nvidia-powerd|battery-limit|fan|kb-zone|kb-effect|kb-bright|brightness|profile|apply-saved} <value...>" >&2; exit 2 ;;
+  *) echo "usage: omarchy-perf-helper {turbo|cpu-cap|cpu-cores|power-limit|platform-profile|nvidia-powerd|battery-limit|fan|kb-zone|kb-effect|kb-bright|kb-link|brightness|profile|apply-saved} <value...>" >&2; exit 2 ;;
 esac
 HELPER
 chmod 755 "$HELPER"

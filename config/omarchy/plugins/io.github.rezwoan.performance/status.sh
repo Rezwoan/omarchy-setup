@@ -93,6 +93,9 @@ theme_hex="$(grep -m1 '^accent' "$HOME/.local/state/omarchy/current/theme/colors
 session_enabled=false
 [[ -f "$HOME/.config/omarchy/session-restore.enabled" ]] && session_enabled=true
 
+kb_link="$(cat /var/lib/omarchy-perf/kblink 2>/dev/null)"
+[[ $kb_link == theme || $kb_link == profile ]] || kb_link=off
+
 # Privileged writes go through a scoped NOPASSWD sudoers rule installed once
 # by setup.sh (see README.md) — `sudo -n` fails closed with exit 1 ("a
 # password is required") if that rule isn't installed, and only reaches the
@@ -104,5 +107,5 @@ if [[ -x /usr/local/bin/omarchy-perf-helper ]]; then
   [[ $? -eq 2 ]] && helper_ok=true
 fi
 
-printf '{"profile":"%s","turbo":"%s","thermal":"%s","thermalChoices":"%s","cpucap":"%s","cores":"%s","powerlimit":"%s","gpu":"%s","gpuAvailable":%s,"powerd":"%s","battlimit":"%s","fan":"%s","kbAvailable":%s,"kbPkgInstalled":%s,"battpct":"%s","battstatus":"%s","preset":"%s","themeHex":"%s","helperOk":%s,"sessionEnabled":%s}\n' \
-  "$profile" "$turbo" "$thermal" "$thermal_choices" "$cpucap" "$cores" "$powerlimit" "$gpu" "$gpu_available" "$powerd" "$battlimit" "$fan" "$kb_available" "$kb_pkg_installed" "${battpct:-}" "${battstatus:-}" "$preset" "$theme_hex" "$helper_ok" "$session_enabled"
+printf '{"profile":"%s","turbo":"%s","thermal":"%s","thermalChoices":"%s","cpucap":"%s","cores":"%s","powerlimit":"%s","gpu":"%s","gpuAvailable":%s,"powerd":"%s","battlimit":"%s","fan":"%s","kbAvailable":%s,"kbPkgInstalled":%s,"battpct":"%s","battstatus":"%s","preset":"%s","themeHex":"%s","helperOk":%s,"sessionEnabled":%s,"kbLink":"%s"}\n' \
+  "$profile" "$turbo" "$thermal" "$thermal_choices" "$cpucap" "$cores" "$powerlimit" "$gpu" "$gpu_available" "$powerd" "$battlimit" "$fan" "$kb_available" "$kb_pkg_installed" "${battpct:-}" "${battstatus:-}" "$preset" "$theme_hex" "$helper_ok" "$session_enabled" "$kb_link"

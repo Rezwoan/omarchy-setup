@@ -7,7 +7,7 @@ function parseStatus(text) {
     cpucap: "", cores: "all", powerlimit: "", gpu: "n/a", gpuAvailable: false,
     powerd: "inactive", battlimit: "n/a", fan: "n/a", kbAvailable: false, kbPkgInstalled: false,
     battpct: "", battstatus: "", preset: "", themeHex: "ffffff",
-    helperOk: false, sessionEnabled: false
+    helperOk: false, sessionEnabled: false, kbLink: "off"
   }
   try {
     var parsed = JSON.parse(String(text || "").trim())

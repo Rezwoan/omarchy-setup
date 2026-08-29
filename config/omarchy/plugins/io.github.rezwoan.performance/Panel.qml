@@ -127,8 +127,19 @@ Panel {
   function setKbBrightness(pct) { runPrivileged("kb-bright", pct) }
   function setKbColor(hex) { runPrivileged("kb-zone", hex, "100") }
   function setKbEffect(mode) { runPrivileged("kb-effect", mode, "5", "100", "1", root.status.themeHex) }
-  function matchKbTheme() { runPrivileged("kb-zone", root.status.themeHex, "100") }
-  function matchPredatorMode() { runPrivileged("kb-zone", root.modeHex() || root.status.themeHex, "100") }
+  // Stateful, unlike a one-shot color pick: while linked, the keyboard color
+  // is re-applied by the helper on every future profile change too (see
+  // setup.sh's kb-link verb). Picking any plain color swatch or effect
+  // clears this server-side, which is why those don't need a matching
+  // client-side call here. Clicking an already-active link button toggles
+  // it back off.
+  function setKbLink(mode) {
+    if (root.status.kbLink === mode) {
+      runPrivileged("kb-link", "off")
+    } else {
+      runPrivileged("kb-link", mode, root.status.themeHex)
+    }
+  }
 
   // Session restore lives entirely in the user's own home dir (a flag file
   // + a systemd --user timer that snapshots open windows, restored on next
@@ -918,7 +929,8 @@ Panel {
               horizontalPadding: Style.spacing.sm
               verticalPadding: Style.spacing.controlPaddingY
               bordered: true
-              onClicked: root.matchKbTheme()
+              selected: root.status.kbLink === "theme"
+              onClicked: root.setKbLink("theme")
             }
             Button {
               text: "Match Predator mode"
@@ -928,7 +940,8 @@ Panel {
               horizontalPadding: Style.spacing.sm
               verticalPadding: Style.spacing.controlPaddingY
               bordered: true
-              onClicked: root.matchPredatorMode()
+              selected: root.status.kbLink === "profile"
+              onClicked: root.setKbLink("profile")
             }
           }
 
