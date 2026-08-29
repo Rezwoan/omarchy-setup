@@ -27,15 +27,15 @@ context for the machine, the custom tooling, and the rules for changing anything
 1. **Never handle the sudo password.** Privileged commands must be run **by the user**, not by
    Claude piping a password. When a step needs root, tell the user to run it themselves — in
    Claude Code they can prefix a command with `!` to run it in-session (e.g.
-   `!sudo bash config/omarchy/plugins/io.github.rezwoan.performance/install-helper.sh`).
+   `!sudo bash config/omarchy/plugins/io.github.rezwoan.performance/setup.sh`).
    Never echo, pipe, or store the password.
 2. **No secrets in this repo — ever.** `sync.sh` runs a secret scan that **aborts the commit**
    if it finds keys/tokens. Never add `~/.ssh`, `~/.gnupg`, `~/.config/gh`,
    `~/.config/environment.d`, credentials, or `~/.claude/{.credentials.json,history.jsonl,sessions,projects}`.
    Only the curated `claude/memory/*.md` files are tracked.
-3. **All privileged actions for the Performance plugin go through one root-owned,
+3. **All privileged actions for the PredatorSense plugin go through one root-owned,
    input-validated helper**: `/usr/local/bin/omarchy-perf-helper` (installed by the plugin's
-   own `install-helper.sh`), run via a **scoped NOPASSWD** rule in `/etc/sudoers.d/omarchy-perf`.
+   own `setup.sh`), run via a **scoped NOPASSWD** rule in `/etc/sudoers.d/omarchy-perf-helper`.
    It accepts only whitelisted verbs/values so it can't be coerced into arbitrary commands.
    Add new privileged features as **new verbs in that helper**, never as ad-hoc sudo or a
    broad sudoers rule.
@@ -65,7 +65,7 @@ config/       curated ~/.config subset:
               hypr/                Lua config — bindings, monitors, input, look&feel, autostart
               foot/                actual daily terminal (font, Ctrl+Backspace fix)
               alacritty/ kitty/ ghostty/   kept for reference, not currently installed
-              omarchy/plugins/io.github.rezwoan.performance/   ← the Performance plugin (own README)
+              omarchy/plugins/io.github.rezwoan.performance/   ← the PredatorSense plugin (own README)
               systemd/user/        omarchy-perf-session-save.{service,timer}
 local-bin/    omarchy-perf-session-save / -restore   ("reopen my apps on login")
 system/       fix-drive-mounts.sh, omarchy-ntfs-automount-fix.sh   (drive automount; sudo)
@@ -82,7 +82,8 @@ git clone https://github.com/Rezwoan/omarchy-setup.git && cd omarchy-setup
 ./install.sh          # copies configs into place, backing up anything overwritten
 ```
 Then follow `install.sh`'s printed **NEXT STEPS**: install packages, oh-my-zsh/p10k, enable the
-Performance plugin + its sudo helper, drive automounts, session restore.
+PredatorSense plugin + its sudo helper (one-time "Enable privileged controls" click, no terminal),
+drive automounts, session restore.
 **Drive UUIDs in `system/fix-drive-mounts.sh` are machine-specific — edit them (`lsblk -f`)
 before running on different hardware.**
 
@@ -99,23 +100,34 @@ should be tracked, add a `cp1` line there too.
 
 ## Custom tooling (what the user relies on)
 
-### Performance plugin — `config/omarchy/plugins/io.github.rezwoan.performance/`
-A real `omarchy-shell` bar-widget plugin (id `io.github.rezwoan.performance`), not a menu
-extension — those don't exist under `omarchy-shell`. Sits in the bar (Predator claw logo,
-recolored per active mode: green/saver, magenta/performance, blue/balanced). Two tabs —
-General (power presets/profile/thermal/CPU/GPU/battery/session) and Keyboard (4-zone RGB) —
-see that directory's own `README.md` for the full control list and the install/enable steps.
+### PredatorSense plugin — `config/omarchy/plugins/io.github.rezwoan.performance/`
+A real `omarchy-shell` bar-widget plugin (id `io.github.rezwoan.performance`, display name
+"PredatorSense"), not a menu extension — those don't exist under `omarchy-shell`. Sits in the
+bar (Predator claw logo, recolored per active mode: green/saver, magenta/performance,
+blue/balanced). One unified PROFILE selector — Ultra Saver / Saver / Balanced / Performance /
+Ultra Performance / Custom (Custom is a passive indicator, not a real preset — it lights up
+whenever a raw control has been hand-tuned since the last named preset was applied) — with the
+old separate Power Profile + Thermal Profile controls tucked behind a small gear (⚙) button
+next to the GPU-stats/battery-info icons, plus CPU/GPU/battery/fan/session controls and a
+Keyboard tab (4-zone RGB). See that directory's own `README.md` for the full control list and
+the install/enable steps.
 
-**No keybind opens it.** `hyprctl binds` proved this machine's Predator-adjacent function key
-literally *is* `XF86MonBrightnessUp` at the Hyprland level (same raw evdev keycode) — there is
-no separate physical-key signal to bind. Bar-icon click only.
+**Physical Predator button opens it** (`~/.config/hypr/bindings.lua`, `code:156`) — confirmed via
+raw evdev capture that this key fires *only* evdev code 148 (KEY_PROG1) on the internal keyboard
+device, while Fn+F6 fires on entirely different devices (Video Bus code 225 / Acer WMI hotkeys
+code 240) and never touches code 148. An earlier assumption that these collided was wrong;
+`hyprctl binds -j` doesn't decode `code:`-syntax binds in its `key`/`keycode` fields (shows empty
+for ALL code-based binds, even known-working stock ones), which is what caused that confusion.
 
 Privileged writes route through `/usr/local/bin/omarchy-perf-helper <verb> <args>`, installed
-by the plugin's `install-helper.sh`. Power presets (Ultra Saver / Balanced / Performance) persist
-to `/var/lib/omarchy-perf/profile` and reapply on boot via `omarchy-perf-restore.service`.
+by the plugin's `setup.sh`, authorized via a **scoped NOPASSWD sudoers rule**
+(`/etc/sudoers.d/omarchy-perf-helper`) — one real password prompt ever (the setup button),
+then every control uses `sudo -n` and never prompts again. Power presets persist to
+`/var/lib/omarchy-perf/profile` and reapply on boot via `omarchy-perf-restore.service`.
 Keyboard RGB + battery limit + fan need `linuwu-sense-dkms` with its module actually loaded
-(`enable-keyboard.sh` handles the `acer_wmi` → `linuwu_sense` hot-swap). GPU mode needs
-`envycontrol`.
+(`enable-keyboard.sh` handles the `acer_wmi` → `linuwu_sense` hot-swap) — fan writes must be
+`"cpu,gpu"` (e.g. `"50,50"`), a bare number is silently rejected by the driver. GPU mode
+switching needs `envycontrol` (AUR) — installed on this machine.
 
 ### Drives
 NTFS/exFAT volumes mount at `/mnt/{Files,Dev,Study,Windows,NewVolume}` as the user
@@ -125,7 +137,7 @@ from Windows may carry the read-only DOS attribute (ntfs3/ntfs-3g blocks writes)
 
 ### Session restore — `local-bin/omarchy-perf-session-*` + `systemd/user`
 Snapshots open windows+workspaces each minute and reopens them on login (toggle from the
-Performance plugin's General tab).
+PredatorSense plugin's General tab, SESSION section).
 
 ---
 

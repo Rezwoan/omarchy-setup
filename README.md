@@ -30,17 +30,23 @@ claude/    memory/  ← Claude Code's persistent notes about this machine/repo
 
 ## Highlights
 
-- **Performance plugin** — a proper `omarchy-shell` bar-widget plugin (not a menu extension —
+- **PredatorSense plugin** — a proper `omarchy-shell` bar-widget plugin (not a menu extension —
   those don't exist anymore) living at `config/omarchy/plugins/io.github.rezwoan.performance/`.
-  Click its icon in the bar (it's the Acer Predator claw logo, recolored live: green = battery
-  saver, neon magenta = performance, blue = balanced). Two tabs:
-  - **General** — one-tap Power Presets (persisted, reapplied on boot), power-profiles-daemon,
-    thermal profile, CPU turbo/cores/max-frequency/RAPL power limit, GPU mode (envycontrol) +
-    dynamic boost, 80% battery charge limit, fan speed, session-restore toggle.
-  - **Keyboard** — 4-zone RGB: brightness, 9 static colors, 7 animated effects, match-theme/off.
+  Click its icon in the bar, or press the physical **Predator button**
+  (`~/.config/hypr/bindings.lua`, `code:156` — confirmed via raw evdev capture to be a distinct
+  key from Fn+F6). Recolored live: green = battery saver, neon magenta = performance, blue =
+  balanced.
+  - **General** — one unified Profile selector (Ultra Saver / Saver / Balanced / Performance /
+    Ultra Performance / Custom), with power-profiles-daemon + thermal profile tucked behind a
+    small gear (⚙) button for advanced use, CPU turbo/cores/max-frequency/RAPL power limit, GPU
+    mode (envycontrol) + dynamic boost, 80% battery charge limit, fan speed, session-restore
+    toggle.
+  - **Keyboard** — 4-zone RGB: brightness, static colors (theme accent, live profile color, plus
+    9 fixed swatches), 7 animated effects, match-theme/off.
   Every privileged write goes through a single root-owned, verb-whitelisted helper
-  (`omarchy-perf-helper`) authorized via a sudoers rule scoped to just that binary — see the
-  plugin's own `README.md` for the full security model and setup steps.
+  (`omarchy-perf-helper`) authorized via a sudoers rule scoped to just that binary — one real
+  password prompt ever (first-run setup), then silent — see the plugin's own `README.md` for
+  the full security model and setup steps.
 - **Session restore** — snapshots open windows + their workspaces every minute and
   reopens them on login (`omarchy-perf-session-save`/`-restore`).
 - **Drive automount** — fstab + `systemd-automount` (by UUID) for the internal

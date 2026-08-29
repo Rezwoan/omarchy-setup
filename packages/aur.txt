@@ -1,2 +1,3 @@
+envycontrol
 google-chrome
 linuwu-sense-dkms

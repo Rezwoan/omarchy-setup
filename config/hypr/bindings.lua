@@ -28,9 +28,10 @@
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 -- o.bind("SUPER + PERIOD", nil, "omarchy-shell shell toggle omarchy.emojis")
 
--- NOTE: no keybind for the Performance panel. `hyprctl binds` confirms this
--- laptop's key at evdev code 148 / Hyprland code:156 is the exact same
--- physical trigger as XF86MonBrightnessUp (already bound with no modifier,
--- see the stock brightness binds) — there is no separate "Predator key"
--- signal at the Hyprland level to bind to, so any bind here just doubles up
--- on Fn+F6. Open the panel from its bar icon instead.
+-- Physical Predator button -> open PredatorSense. Confirmed via raw evdev
+-- capture: this key fires ONLY evdev code 148 (KEY_PROG1) on the internal
+-- keyboard device, while Fn+F6 fires on entirely different devices (Video
+-- Bus code 225 / Acer WMI hotkeys code 240) and never touches code 148 — so
+-- despite an earlier (wrong) assumption that these collided, they're
+-- cleanly distinct. code:156 = evdev 148 + 8 (Hyprland's X11 keycode offset).
+o.bind("code:156", "PredatorSense", "omarchy-shell io.github.rezwoan.performance toggle")

@@ -5,9 +5,9 @@ function parseStatus(text) {
   var fallback = {
     profile: "unknown", turbo: "n/a", thermal: "n/a", thermalChoices: "",
     cpucap: "", cores: "all", powerlimit: "", gpu: "n/a", gpuAvailable: false,
-    powerd: "inactive", battlimit: "n/a", fan: "n/a", kbAvailable: false,
-    battpct: "", battstatus: "", preset: "", session: "off", themeHex: "ffffff",
-    helperOk: false
+    powerd: "inactive", battlimit: "n/a", fan: "n/a", kbAvailable: false, kbPkgInstalled: false,
+    battpct: "", battstatus: "", preset: "", themeHex: "ffffff",
+    helperOk: false, sessionEnabled: false
   }
   try {
     var parsed = JSON.parse(String(text || "").trim())
@@ -24,16 +24,18 @@ function parseStatus(text) {
 function presetLabel(preset) {
   switch (preset) {
     case "ultra": return "ULTRA SAVER"
+    case "saver": return "SAVER"
     case "balanced": return "BALANCED"
     case "performance": return "PERFORMANCE"
+    case "ultra-performance": return "ULTRA PERFORMANCE"
     default: return "CUSTOM"
   }
 }
 
 function presetIcon(preset) {
   switch (preset) {
-    case "ultra": return "󰡳"
-    case "performance": return "󰓅"
+    case "ultra": case "saver": return "󰡳"
+    case "performance": case "ultra-performance": return "󰓅"
     default: return "󰗑"
   }
 }
@@ -94,17 +96,9 @@ function fanLabel(fan) {
   return fan + "%"
 }
 
-function gpuLabel(gpu) {
-  switch (gpu) {
-    case "integrated": return "Integrated"
-    case "hybrid": return "Hybrid"
-    case "nvidia": return "Nvidia"
-    default: return "n/a"
-  }
-}
-
 var KB_COLORS = [
   { key: "theme", label: "Theme" },
+  { key: "profile", label: "Profile" },
   { key: "green", label: "Green", hex: "82fb9c" },
   { key: "teal", label: "Teal", hex: "00aec7" },
   { key: "cyan", label: "Cyan", hex: "00ffff" },
@@ -115,8 +109,9 @@ var KB_COLORS = [
   { key: "white", label: "White", hex: "ffffff" }
 ]
 
-function kbColorHex(key, themeHex) {
+function kbColorHex(key, themeHex, modeHex) {
   if (key === "theme") return themeHex || "ffffff"
+  if (key === "profile") return modeHex || themeHex || "ffffff"
   for (var i = 0; i < KB_COLORS.length; i++) {
     if (KB_COLORS[i].key === key) return KB_COLORS[i].hex
   }

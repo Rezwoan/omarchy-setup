@@ -1,98 +1,125 @@
-# Performance
+# PredatorSense — for Acer Predator laptops
 
-A bar-widget plugin for `omarchy-shell` that ports an old walker-menu
-"Performance" control center to a proper themed panel, with two tabs:
+An [Omarchy](https://omarchy.org/) `omarchy-shell` bar-widget plugin: a real power/CPU/GPU/
+battery/keyboard control center in your bar, built for **Acer Predator** laptops (and useful,
+minus the Acer-only bits, on any Intel `intel_pstate` + RAPL laptop). Part of the personal
+[`omarchy-setup`](https://github.com/Rezwoan/omarchy-setup) dotfiles repo — not a published
+marketplace plugin.
 
-- **General** — one-tap Power Presets (Ultra Saver / Balanced / Performance,
-  persisted and reapplied on boot), power-profiles-daemon, thermal profile,
-  CPU turbo/cores/max-frequency/RAPL power limit, GPU mode + dynamic boost,
-  80% battery charge limit, fan speed, session restore.
-- **Keyboard** — 4-zone RGB: brightness, 9 static colors, 7 animated effects
-  (Breathing/Neon/Wave/Shifting/Zoom/Meteor/Twinkling), match-theme/off.
+**Tested on: Acer Predator Helios Neo 16 (PHN16-71), Intel i5-13500HX, NVIDIA RTX 4050.**
 
-The bar icon and panel header both show the Acer Predator claw mark, recolored
-live based on the active mode: **green** = battery saver, **neon magenta** =
-performance, **blue** = balanced, theme foreground otherwise.
+![General tab](assets/screenshot-general.png)
 
-Built for an Acer Predator Helios Neo 16 (PHN16-71, i5-13500HX + RTX 4050),
-but everything except the Keyboard tab and battery-limit/fan (which need
-Acer's `linuwu-sense` driver) works on any Intel `intel_pstate` + RAPL laptop.
+> Independent, unofficial personal tooling — not affiliated with, endorsed by, or supported by
+> Acer Inc. "Predator" and the Predator logo are trademarks of Acer Inc., used here only to
+> identify the hardware this targets.
 
-## Install
+## Why
 
-```bash
-omarchy plugin enable io.github.rezwoan.performance --section right
-sudo bash install-helper.sh   # one-time: installs the privileged write path
-```
+Windows has PredatorSense. Omarchy didn't have anything, so this ports the useful parts of it —
+plus a few things PredatorSense doesn't even do (CPU core-count control, RAPL power-limit
+presets) — into a proper bar widget that matches your theme.
 
-Without `install-helper.sh`, the panel still shows live status (nothing
-breaks), but every button/toggle silently no-ops — `sudo -n` to a
-not-yet-installed helper just fails quietly. The panel shows a banner
-reminding you when this is the case.
+## Install / enable
 
-Optional AUR packages unlock more sections:
+Lives at `~/.config/omarchy/plugins/io.github.rezwoan.performance/`, deployed by this repo's
+`install.sh` (or copy the directory manually onto any Omarchy 4.0.1+ machine). The panel works
+immediately in read-only mode (live status only). The first time you want to actually *change*
+something, click **Enable privileged controls** in the panel — one real password prompt, ever
+(see [How it works](#how-it-works)); every control after that is silent.
 
-- `envycontrol` — GPU mode switching (Integrated/Hybrid/Nvidia)
-- `linuwu-sense-dkms` — 80% battery charge limit, fan speed, keyboard RGB.
-  Installing the package isn't enough on its own — its kernel module has to
-  actually be loaded in place of the stock `acer_wmi` driver. If
-  `lsmod | grep linuwu` comes up empty, run:
-  ```bash
-  sudo bash enable-keyboard.sh
-  ```
+Open it from the bar icon, or press the physical **Predator button** (bound in
+`~/.config/hypr/bindings.lua` via `code:156` — confirmed via raw evdev capture to fire evdev code
+148 (KEY_PROG1) on the internal keyboard device, entirely distinct from Fn+F6, which fires on
+different devices and never touches that code).
 
-**No keybind opens this panel — bar-icon click only.** On this laptop,
-`hyprctl binds` shows the Predator-adjacent function key literally *is*
-`XF86MonBrightnessUp` at the Hyprland level (same raw evdev keycode, no
-separate signal exists to bind); check yours the same way before wiring one
-up on a different machine.
+### Unlocking the Acer-only sections
 
-## Files
+Two optional AUR packages unlock more of the panel — everything else works without them:
 
-- `manifest.json` — plugin declaration (`kinds: ["bar-widget"]`)
-- `Panel.qml` — bar icon + popup panel (single entry point, following the
-  `omarchy.power` / `omarchy.monitor` first-party pattern)
-- `Model.js` — pure JSON-parsing + label/icon helpers, no QML types
-- `status.sh` — read-only status snapshot (sysfs + systemctl reads only, no sudo)
-- `install-helper.sh` — one-time sudo installer for the privileged write path
-- `enable-keyboard.sh` — one-time sudo hot-swap from `acer_wmi` to `linuwu_sense`
-- `assets/predator-mask.png` — white-on-transparent silhouette, tinted at
-  runtime via `QtQuick.Effects.MultiEffect{colorization}` (same pattern as the
-  first-party Tray widget's symbolic icons)
+| Package | Unlocks |
+|---|---|
+| `linuwu-sense-dkms` | Keyboard tab (RGB), 80% battery charge limit, fan speed |
+| `envycontrol` | GPU mode switching (Integrated / Hybrid / Nvidia) |
 
-## How writes work
+If `linuwu-sense-dkms` is installed but the Keyboard tab still says it isn't detected, its
+kernel module probably lost the race to the stock `acer_wmi` driver at boot — the panel detects
+this and shows an **Enable keyboard RGB now** button that fixes it with one click and one
+password prompt. No manual `modprobe`/blacklist editing.
 
-Every privileged action goes through `sudo -n /usr/local/bin/omarchy-perf-helper
-<verb> <args>` — a root-owned, verb-whitelisted script installed by
-`install-helper.sh` alongside a sudoers rule scoped to that one binary
-(`NOPASSWD` only for this exact path, no broad sudo grant). The helper
-validates every value before touching a sysfs node, so it can't be coerced
-into running arbitrary commands even though it's passwordless.
+## What it does
 
-Power presets (Ultra Saver / Balanced / Performance) are persisted to
-`/var/lib/omarchy-perf/profile` and re-applied on every boot by
-`omarchy-perf-restore.service`.
+**General tab**
+- One unified **Profile** selector — Ultra Saver / Saver / Balanced / Performance / Ultra
+  Performance / Custom — each named preset bundling CPU cores, turbo, frequency cap, RAPL power
+  limit, thermal profile, fan, keyboard color, and screen brightness. Persisted and silently
+  reapplied on every boot. Custom isn't a real preset — it's a passive indicator that lights up
+  whenever a raw control below (or in the Advanced popover) has been hand-tuned since the last
+  named preset was applied.
+- **Advanced** (small gear ⚙ button next to the GPU-stats/battery-info icons): the raw power
+  profile (power-profiles-daemon) and thermal profile (every `platform_profile` your firmware
+  exposes, not a hardcoded list) controls, for manual overrides outside the named presets.
+- CPU: turbo boost, core mode (all / no hyperthreading / E-cores only), max frequency cap, RAPL
+  package power limit
+- GPU: mode switching (needs `envycontrol`, reboot required), Nvidia dynamic-boost toggle
+- Battery: live percentage/status, 80% charge-limit toggle, fan speed
+- Session: reopens your open windows + workspaces on next login
 
-## Developing this plugin further
+![CPU, GPU, battery, and fan controls](assets/screenshot-general-gpu-battery.png)
 
-Two things that cost real debugging time and will bite again if forgotten:
+**Keyboard tab** (4-zone RGB)
+- Brightness (5 steps)
+- Static colors: theme accent, live Predator-mode color (green/magenta/blue, matching whatever
+  the bar icon is currently tinted), plus 9 fixed swatches
+- 7 animated effects (Breathing / Neon / Wave / Shifting / Zoom / Meteor / Twinkling)
+- Quick actions: match Omarchy theme, match Predator mode
 
-- `bar.shellQuote()` is documented in Omarchy's own `shell/plugins/bar/README.md`
-  but **does not exist** — the real function is `Util.shellQuote()` from
-  `qs.Commons`. Calling the documented-but-wrong one throws a silent QML
-  TypeError (only visible via `journalctl --user -t omarchy-shell`), so every
-  click does nothing with no on-screen error at all.
-- Editing this file while it's already placed in the bar does not reliably
-  hot-reload, despite the plugin docs. `omarchy-shell shell rescanPlugins`
-  didn't help either — only a full `omarchy restart shell` (confirm a new
-  quickshell PID) reliably picks up a change. Verify with that, not the
-  "Local plugin changed, reloading" journal line.
+The bar icon is the Predator claw mark, recolored live to match your active mode — green for
+battery saver, neon magenta for performance, blue for balanced, your theme's foreground color
+otherwise.
+
+![Keyboard tab](assets/screenshot-keyboard.png)
+
+## How it works
+
+Every privileged write goes through one root-owned, verb-whitelisted script
+(`/usr/local/bin/omarchy-perf-helper`) — it only accepts an exact, hardcoded set of
+verbs/values (`turbo on|off`, `cpu-cores all|no-smt|ecore`, six-digit hex colors validated by
+regex, etc.) and refuses everything else. It can't be redirected into running arbitrary
+commands even though it runs as root.
+
+Authorization is a **NOPASSWD sudoers rule scoped to that exact binary**
+(`/etc/sudoers.d/omarchy-perf-helper`) — every control calls `sudo -n omarchy-perf-helper ...`,
+which fails closed (no prompt, no hang) if the rule isn't installed yet. `setup.sh` (what the
+"Enable privileged controls" button runs, via `pkexec` — the one real password prompt in the
+whole plugin) installs the helper and this rule; nothing is installed until you click that
+button.
 
 ## Uninstall
 
 ```bash
 omarchy plugin remove io.github.rezwoan.performance
-sudo rm -f /usr/local/bin/omarchy-perf-helper /etc/sudoers.d/omarchy-perf \
+sudo rm -f /usr/local/bin/omarchy-perf-helper \
+           /etc/sudoers.d/omarchy-perf-helper \
            /etc/systemd/system/omarchy-perf-restore.service
 sudo systemctl daemon-reload
 ```
+(The last three lines only apply if you'd clicked "Enable privileged controls" — skip them if
+you never did.)
+
+## Compatibility
+
+| Feature | Requires |
+|---|---|
+| Bar icon, status, power presets, power profile | Any Omarchy 4.0.1+ install |
+| Thermal profile, CPU turbo/cores/frequency, RAPL power limit | Intel CPU with `intel_pstate` + RAPL (most 8th-gen+ Intel laptops) |
+| GPU mode switching, dynamic boost | NVIDIA Optimus laptop + `envycontrol` |
+| Keyboard RGB, 80% battery limit, fan speed | Acer laptop + `linuwu-sense-dkms` |
+| Physical Predator-button keybind | Acer laptop where the button reports evdev KEY_PROG1 (verify with a raw evdev capture — see `claude/memory/performance-plugin.md` in the parent repo) |
+
+Not an Acer Predator? The General tab (minus GPU/battery-limit/fan) still works on any
+Intel laptop. The Keyboard tab and those two General-tab rows will just stay hidden.
+
+## License
+
+[MIT](LICENSE)

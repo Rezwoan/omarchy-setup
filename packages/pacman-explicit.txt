@@ -26,6 +26,7 @@ dosfstools
 dotnet-runtime
 dua-cli
 efibootmgr
+envycontrol
 evince
 exfatprogs
 expac
@@ -130,6 +131,7 @@ qt6-imageformats
 quickshell
 ripgrep
 ruby
+sbctl
 sddm
 slurp
 socat
@@ -141,6 +143,15 @@ system-config-printer
 tensaku
 tesseract
 tesseract-data-eng
+texlive-basic
+texlive-bin
+texlive-binextra
+texlive-fontsextra
+texlive-fontsrecommended
+texlive-latex
+texlive-latexextra
+texlive-latexrecommended
+texlive-pictures
 thermald
 tldr
 tmux

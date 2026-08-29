@@ -1,27 +1,47 @@
 #!/bin/bash
-# One-time privileged installer for the Performance plugin's write path.
-# Run with: sudo bash install-helper.sh
+# One-time privileged setup for the PredatorSense plugin's write path. The
+# plugin runs this itself via `pkexec` (its "Enable privileged controls"
+# button) — you should never need to open a terminal for this, and you'll
+# never see another auth prompt after this one.
 #
-# Installs a root-owned, verb-whitelisted helper plus a sudoers rule scoped
-# to that one binary — the plugin's ButtonGroups/Toggles call it via
-# `sudo -n` for every privileged action (turbo, CPU cores/cap, RAPL power
-# limit, thermal profile, fan, battery limiter, keyboard RGB, power presets).
-# Without this script the panel still works read-only (status is always
-# plain sysfs reads); every write silently no-ops until it's installed.
+# Installs a root-owned, verb-whitelisted helper plus a scoped NOPASSWD
+# sudoers rule for exactly that one binary (`sudo -n omarchy-perf-helper
+# ...`, never plain sudo/pkexec) — the helper only accepts a fixed set of
+# verbs/values, so the rule can't be coerced into running arbitrary root
+# commands. Without this script the panel still works read-only (status is
+# always plain sysfs reads); every write just no-ops until it's run.
 set -euo pipefail
-[[ $EUID -eq 0 ]] || { echo "Please run with sudo."; exit 1; }
+[[ $EUID -eq 0 ]] || { echo "This script must run as root (the plugin invokes it via pkexec)."; exit 1; }
 
-TARGET_USER="${SUDO_USER:-$(id -un 1000 2>/dev/null || echo root)}"
-echo "==> Installing for user $TARGET_USER"
+HELPER=/usr/local/bin/omarchy-perf-helper
+SUDOERS_FILE=/etc/sudoers.d/omarchy-perf-helper
+
+# Recover the real invoking user (root by way of pkexec has no useful $HOME).
+REAL_USER="${PKEXEC_UID:+$(getent passwd "$PKEXEC_UID" | cut -d: -f1)}"
+[[ -z ${REAL_USER:-} ]] && REAL_USER="$(logname 2>/dev/null || true)"
+[[ -z ${REAL_USER:-} || $REAL_USER == root ]] && REAL_USER="${SUDO_USER:-}"
+[[ -n ${REAL_USER:-} && $REAL_USER != root ]] || { echo "Could not determine the invoking user; aborting."; exit 1; }
 
 install -d /usr/local/bin
-cat > /usr/local/bin/omarchy-perf-helper <<'HELPER'
+cat > "$HELPER" <<'HELPER'
 #!/bin/bash
-# omarchy-perf-helper — privileged applier for the Performance plugin.
-# Root-owned, invoked via a scoped NOPASSWD sudo rule. Accepts ONLY whitelisted
-# verbs/values, so it cannot be coerced into running arbitrary commands.
+# omarchy-perf-helper — privileged applier for the PredatorSense plugin.
+# Root-owned, invoked via `sudo -n` under a NOPASSWD sudoers rule scoped to
+# this exact path (see /etc/sudoers.d/omarchy-perf-helper, installed by
+# setup.sh). Accepts ONLY whitelisted verbs and values, so the rule can't be
+# coerced into running arbitrary commands.
 set -euo pipefail
 cmd="${1:-}"; val="${2:-}"
+
+# Any of these verbs, run as the top-level command (not internally by
+# `profile` applying a named preset), means the user just hand-tuned a
+# setting — the remembered preset no longer describes reality, so the panel
+# should show CUSTOM until a named preset is picked again.
+case "$cmd" in
+  turbo|cpu-cap|cpu-cores|power-limit|platform-profile|fan|nvidia-powerd)
+    [[ -n "${OMARCHY_PERF_INTERNAL:-}" ]] || rm -f /var/lib/omarchy-perf/profile 2>/dev/null || true ;;
+esac
+
 case "$cmd" in
   turbo)
     case "$val" in
@@ -100,9 +120,12 @@ case "$cmd" in
   fan)
     b=$(echo /sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/*_sense 2>/dev/null)
     [[ -d $b && -w $b/fan_speed ]] || exit 3
+    # Driver expects "cpu,gpu" (see predator_fan_speed_store in
+    # linuwu_sense.c) — a bare number here was always -EINVAL, silently
+    # no-opping. Drive both fans together; that's all this panel exposes.
     case "$val" in
-      auto) echo 0 > "$b/fan_speed" ;;
-      [1-9]|[1-9][0-9]|100) echo "$val" > "$b/fan_speed" ;;
+      auto) echo "0,0" > "$b/fan_speed" ;;
+      [1-9]|[1-9][0-9]|100) echo "$val,$val" > "$b/fan_speed" ;;
       *) exit 2 ;;
     esac ;;
   kb-zone)   # static, all 4 zones one colour:  kb-zone <hex6> <brightness0-100>
@@ -142,6 +165,7 @@ case "$cmd" in
   profile) # apply a named power preset, then remember it: profile <name> [kb_hex]
     name="${2:-}"; kbhex="${3:-ffffff}"
     [[ $kbhex =~ ^[0-9a-fA-F]{6}$ ]] || kbhex=ffffff
+    export OMARCHY_PERF_INTERNAL=1
     case "$name" in
       ultra)
         "$0" cpu-cores ecore            || true
@@ -149,14 +173,25 @@ case "$cmd" in
         "$0" cpu-cap 20                 || true
         "$0" power-limit 20 20          || true
         "$0" platform-profile low-power || true
+        "$0" fan auto                   || true
         "$0" kb-bright 0                || true
         "$0" brightness 1               || true ;;
+      saver)
+        "$0" cpu-cores all              || true
+        "$0" turbo off                  || true
+        "$0" cpu-cap 50                 || true
+        "$0" power-limit 30 40          || true
+        "$0" platform-profile quiet     || true
+        "$0" fan auto                   || true
+        "$0" kb-bright 0                || true
+        "$0" brightness 30              || true ;;
       balanced)
         "$0" cpu-cores all              || true
         "$0" turbo on                   || true
         "$0" cpu-cap 100                || true
         "$0" power-limit 65 157         || true
         "$0" platform-profile balanced  || true
+        "$0" fan auto                   || true
         "$0" kb-zone "$kbhex" 100       || true
         "$0" brightness 60              || true ;;
       performance)
@@ -165,10 +200,22 @@ case "$cmd" in
         "$0" cpu-cap 100                || true
         "$0" power-limit 65 157         || true
         "$0" platform-profile performance || true
+        "$0" fan auto                   || true
         "$0" kb-zone "$kbhex" 100       || true
         "$0" brightness 90              || true ;;
+      ultra-performance)
+        "$0" cpu-cores all              || true
+        "$0" turbo on                   || true
+        "$0" cpu-cap 100                || true
+        "$0" power-limit 65 157         || true
+        "$0" platform-profile performance || true
+        "$0" nvidia-powerd on           || true
+        "$0" fan 100                    || true
+        "$0" kb-zone "$kbhex" 100       || true
+        "$0" brightness 100             || true ;;
       *) exit 2 ;;
     esac
+    unset OMARCHY_PERF_INTERNAL
     install -d -m 755 /var/lib/omarchy-perf 2>/dev/null || true
     printf '%s\n' "$name"  > /var/lib/omarchy-perf/profile 2>/dev/null || true
     printf '%s\n' "$kbhex" > /var/lib/omarchy-perf/kbhex   2>/dev/null || true ;;
@@ -180,26 +227,26 @@ case "$cmd" in
   *) echo "usage: omarchy-perf-helper {turbo|cpu-cap|cpu-cores|power-limit|platform-profile|nvidia-powerd|battery-limit|fan|kb-zone|kb-effect|kb-bright|brightness|profile|apply-saved} <value...>" >&2; exit 2 ;;
 esac
 HELPER
-chmod 755 /usr/local/bin/omarchy-perf-helper
-chown root:root /usr/local/bin/omarchy-perf-helper
-echo "==> Installed /usr/local/bin/omarchy-perf-helper"
+chmod 755 "$HELPER"
+chown root:root "$HELPER"
+echo "==> Installed $HELPER"
 
-cat > /etc/sudoers.d/omarchy-perf <<EOF
-# Let the Performance plugin apply power settings without a password.
-# Scoped to the single root-owned, input-validated helper below.
-$TARGET_USER ALL=(root) NOPASSWD: /usr/local/bin/omarchy-perf-helper
-EOF
-chmod 440 /etc/sudoers.d/omarchy-perf
-if visudo -cf /etc/sudoers.d/omarchy-perf >/dev/null; then
-  echo "==> Installed /etc/sudoers.d/omarchy-perf (validated)"
-else
-  echo "!! sudoers validation FAILED — removing"; rm -f /etc/sudoers.d/omarchy-perf; exit 1
-fi
+# Migrate off the old polkit-based install if present, so there's exactly
+# one privilege mechanism active (a stale scoped polkit action alongside the
+# sudoers rule is harmless but confusing to debug later).
+rm -f /usr/share/polkit-1/actions/io.github.rezwoan.performance.helper.policy
+
+cat > "$SUDOERS_FILE" <<SUDOERS
+$REAL_USER ALL=(root) NOPASSWD: $HELPER
+SUDOERS
+chmod 440 "$SUDOERS_FILE"
+visudo -cf "$SUDOERS_FILE" || { rm -f "$SUDOERS_FILE"; echo "Generated sudoers rule failed validation; aborting." >&2; exit 1; }
+echo "==> Installed $SUDOERS_FILE (scoped to $REAL_USER running exactly this helper — no other command, no plain sudo)"
 
 install -d -m 755 /var/lib/omarchy-perf
 chown root:root /var/lib/omarchy-perf
 
-cat > /etc/systemd/system/omarchy-perf-restore.service <<'UNIT'
+cat > /etc/systemd/system/omarchy-perf-restore.service <<UNIT
 [Unit]
 Description=Restore last-selected Omarchy power profile
 After=multi-user.target
@@ -207,7 +254,7 @@ ConditionPathExists=/var/lib/omarchy-perf/profile
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/omarchy-perf-helper apply-saved
+ExecStart=$HELPER apply-saved
 
 [Install]
 WantedBy=multi-user.target
