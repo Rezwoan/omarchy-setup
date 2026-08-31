@@ -2,6 +2,15 @@
 # omarchy-perf-session-restore — relaunch the apps saved by
 # omarchy-perf-session-save, each onto the workspace it was on. Runs once at
 # login (via hypr/autostart.lua), only when session restore is enabled.
+#
+# Uses `hyprctl eval 'hl.exec_cmd(cmd, {workspace=..., float=...})'` — NOT
+# the classic `hyprctl dispatch exec "[workspace N silent] cmd"` tag syntax.
+# This Hyprland config parses as Lua, and that bracket-string mini-DSL isn't
+# valid Lua (hyprctl eval/dispatch fails trying to parse "[workspace N
+# silent]" as a Lua expression: "']' expected near 'N'"). This was the
+# actual bug behind session restore never working: the old dispatch call
+# always errored — silenced by the >/dev/null 2>&1 redirect — and never
+# launched anything, for every single app, since day one.
 
 set -uo pipefail
 
@@ -13,12 +22,19 @@ command -v hyprctl >/dev/null || exit 0
 # Give the compositor / bar a moment to come up first.
 sleep 3
 
+# Escape a string for embedding in a Lua "..." literal (backslashes first).
+lua_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  printf '%s' "$s"
+}
+
 while IFS=$'\t' read -r ws floating cmd; do
   [[ -z $cmd ]] && continue
-  if [[ $floating == "true" ]]; then
-    hyprctl dispatch exec "[workspace $ws silent; float] $cmd" >/dev/null 2>&1
-  else
-    hyprctl dispatch exec "[workspace $ws silent] $cmd" >/dev/null 2>&1
-  fi
+  esc_cmd="$(lua_escape "$cmd")"
+  fl="false"
+  [[ $floating == "true" ]] && fl="true"
+  hyprctl eval "hl.exec_cmd(\"$esc_cmd\", { workspace = \"$ws silent\", float = $fl })" >/dev/null 2>&1
   sleep 0.4 # stagger launches so they land on the right workspace
 done < "$IN"
