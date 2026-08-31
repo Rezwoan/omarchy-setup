@@ -129,8 +129,21 @@ Panel {
     refreshTimer.restart()
   }
 
+  // Refresh rate bundles into the named presets too, same reasoning as fan/
+  // turbo/kb color: Ultra Saver/Saver drop to the lowest supported rate
+  // (less GPU/display power draw), Balanced/Performance/Ultra Performance
+  // restore the highest one — so picking Saver once doesn't leave the
+  // display stuck at 60Hz forever after switching back to a faster preset.
   function setPreset(name) {
     runPrivileged("profile", name, root.status.themeHex)
+    var rates = Model.refreshRates(root.status.refreshOptions)
+    if (rates.length > 1) {
+      if (name === "ultra" || name === "saver") {
+        root.setRefreshRate(Math.min.apply(null, rates))
+      } else if (name === "balanced" || name === "performance" || name === "ultra-performance") {
+        root.setRefreshRate(Math.max.apply(null, rates))
+      }
+    }
   }
 
   function setPowerProfile(name) {
