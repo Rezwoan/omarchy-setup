@@ -53,6 +53,14 @@ Panel {
     return hex ? ("#" + hex) : (root.bar ? root.bar.foreground : Color.foreground)
   }
 
+  // Translucent wash of the active mode color, for card/tile backgrounds —
+  // the same "brand accent everywhere" idea as modeColor(), just softened
+  // for a fill instead of a line/border/icon.
+  function modeColorRgba(alpha) {
+    var c = Qt.color(root.modeColor())
+    return Qt.rgba(c.r, c.g, c.b, alpha)
+  }
+
   function refresh() {
     if (!statusProc.running) statusProc.running = true
   }
@@ -394,7 +402,7 @@ Panel {
               PanelActionButton {
                 iconText: "󰒓"
                 tooltipText: "Advanced: power & thermal profile"
-                foreground: root.showAdvanced ? Color.accent : root.bar.foreground
+                foreground: root.showAdvanced ? root.modeColor() : root.bar.foreground
                 fontFamily: root.bar.fontFamily
                 onClicked: root.showAdvanced = !root.showAdvanced
               }
@@ -412,6 +420,7 @@ Panel {
           ButtonGroup {
             width: parent.width
             foreground: root.bar.foreground
+            accent: root.modeColor()
             fontFamily: root.bar.fontFamily
             value: root.activeTab
             options: [
@@ -504,7 +513,14 @@ Panel {
                   text: modelData.label
                   iconText: Model.presetIcon(modelData.value)
                   fontSize: Style.font.bodySmall
-                  foreground: root.bar.foreground
+                  // The active theme (Vantablack) hardcodes its selected-item
+                  // color to a fixed white, ignoring `accent` entirely — that
+                  // token is fully theme-owned with no consumer escape hatch.
+                  // `foreground` isn't gated the same way for the *unselected*
+                  // state, so each preset shows its own brand color there;
+                  // the active one still gets the theme's own selected
+                  // fill+bold treatment, just without the tint.
+                  foreground: presetHex ? ("#" + presetHex) : root.bar.foreground
                   accent: presetHex ? ("#" + presetHex) : Color.accent
                   fontFamily: root.bar.fontFamily
                   horizontalPadding: Style.spacing.sm
@@ -537,6 +553,7 @@ Panel {
               ButtonGroup {
                 width: parent.width
                 foreground: root.bar.foreground
+                accent: root.modeColor()
                 fontFamily: root.bar.fontFamily
                 value: root.status.profile
                 options: [
@@ -573,6 +590,7 @@ Panel {
                     text: modelData.label
                     fontSize: Style.font.bodySmall
                     foreground: root.bar.foreground
+                    accent: root.modeColor()
                     fontFamily: root.bar.fontFamily
                     horizontalPadding: Style.spacing.sm
                     verticalPadding: Style.spacing.controlPaddingY
@@ -598,6 +616,7 @@ Panel {
               width: parent.width
               label: "Turbo boost"
               foreground: root.bar.foreground
+              accent: root.modeColor()
               fontFamily: root.bar.fontFamily
               checked: root.status.turbo === "on"
               onClicked: root.toggleTurbo()
@@ -616,6 +635,7 @@ Panel {
               ButtonGroup {
                 width: parent.width
                 foreground: root.bar.foreground
+                accent: root.modeColor()
                 fontFamily: root.bar.fontFamily
                 fontSize: Style.font.bodySmall
                 value: root.status.cores
@@ -641,6 +661,7 @@ Panel {
               ButtonGroup {
                 width: parent.width
                 foreground: root.bar.foreground
+                accent: root.modeColor()
                 fontFamily: root.bar.fontFamily
                 fontSize: Style.font.bodySmall
                 value: String(root.status.cpucap)
@@ -667,6 +688,7 @@ Panel {
               ButtonGroup {
                 width: parent.width
                 foreground: root.bar.foreground
+                accent: root.modeColor()
                 fontFamily: root.bar.fontFamily
                 fontSize: Style.font.bodySmall
                 value: String(root.status.powerlimit)
@@ -705,6 +727,7 @@ Panel {
               ButtonGroup {
                 width: parent.width
                 foreground: root.bar.foreground
+                accent: root.modeColor()
                 fontFamily: root.bar.fontFamily
                 fontSize: Style.font.bodySmall
                 value: root.status.gpu
@@ -732,6 +755,7 @@ Panel {
               label: "Dynamic boost"
               description: "nvidia-powerd — lets the dGPU draw more power under load"
               foreground: root.bar.foreground
+              accent: root.modeColor()
               fontFamily: root.bar.fontFamily
               checked: root.status.powerd === "active"
               onClicked: root.toggleGpuBoost()
@@ -759,52 +783,27 @@ Panel {
               width: parent.width
               spacing: Style.spacing.sm
 
-              Item {
-                width: parent.width
-                implicitHeight: Math.max(rateHeader.implicitHeight, rateValue.implicitHeight)
-
-                Text {
-                  id: rateHeader
-                  text: "REFRESH RATE · " + root.status.refreshMonitor.toUpperCase()
-                  color: Qt.darker(root.bar.foreground, 1.5)
-                  font.family: root.bar.fontFamily
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                  anchors.left: parent.left
-                  anchors.verticalCenter: parent.verticalCenter
-                }
-                Text {
-                  id: rateValue
-                  text: (refreshSlider.dragging
-                         ? displaySection.rates[Math.round(refreshSlider.liveValue)]
-                         : root.status.refreshCurrent) + " Hz"
-                  color: root.bar.foreground
-                  font.family: root.bar.fontFamily
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                  anchors.right: parent.right
-                  anchors.verticalCenter: parent.verticalCenter
-                }
+              Text {
+                text: "REFRESH RATE · " + root.status.refreshMonitor.toUpperCase()
+                color: Qt.darker(root.bar.foreground, 1.5)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
               }
 
-              // Same PanelSlider-with-tickCount pattern as the built-in
-              // Display plugin's TEXT SIZE slider (monitor/Panel.qml) — one
-              // stop per supported rate, drag-to-preview via liveValue/
-              // dragging, commit on release.
-              PanelSlider {
-                id: refreshSlider
-                bar: root.bar
+              // A slider implies a range of steps; this panel only has two
+              // real fixed rates (its EDID declares a 60-165Hz VRR range,
+              // not intermediate fixed modes — forcing e.g. 90Hz silently
+              // falls back to 60), so two plain buttons is the honest widget.
+              ButtonGroup {
                 width: parent.width
-                minimum: 0
-                maximum: Math.max(0, displaySection.rates.length - 1)
-                step: 1
-                integer: true
-                tickCount: displaySection.rates.length
-                value: displaySection.currentIndex
-                onReleased: function(v) {
-                  var rate = displaySection.rates[Math.round(v)]
-                  if (rate !== undefined) root.setRefreshRate(rate)
-                }
+                foreground: root.bar.foreground
+                accent: root.modeColor()
+                fontFamily: root.bar.fontFamily
+                fontSize: Style.font.bodySmall
+                value: String(root.status.refreshCurrent)
+                options: displaySection.rates.map(function(r) { return { value: String(r), label: r + " Hz" } })
+                onChanged: function(v) { root.setRefreshRate(parseInt(v, 10)) }
               }
             }
           }
@@ -845,6 +844,7 @@ Panel {
               label: "80% charge limit"
               description: "Caps charging around 80% to slow long-term battery wear"
               foreground: root.bar.foreground
+              accent: root.modeColor()
               fontFamily: root.bar.fontFamily
               checked: root.status.battlimit === "on"
               onClicked: root.toggleBatteryLimit()
@@ -874,6 +874,7 @@ Panel {
               ButtonGroup {
                 width: parent.width
                 foreground: root.bar.foreground
+                accent: root.modeColor()
                 fontFamily: root.bar.fontFamily
                 fontSize: Style.font.bodySmall
                 value: root.status.fan
@@ -902,6 +903,7 @@ Panel {
               label: "Remember open apps"
               description: "Reopens your apps + workspaces on next login"
               foreground: root.bar.foreground
+              accent: root.modeColor()
               fontFamily: root.bar.fontFamily
               checked: root.status.sessionEnabled
               onClicked: root.toggleSessionRestore()
@@ -949,8 +951,8 @@ Panel {
                   width: (statGrid.width - statGrid.columnSpacing) / 2
                   implicitHeight: Style.space(52)
                   radius: Style.cornerRadius
-                  color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.05)
-                  borderSpec: Border.flat(Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.14), 1)
+                  color: root.modeColorRgba(0.08)
+                  borderSpec: Border.flat(root.modeColorRgba(0.25), 1)
 
                   Column {
                     anchors.left: parent.left
@@ -1008,7 +1010,7 @@ Panel {
               }
               Text {
                 text: "CPU · GPU"
-                color: Color.accent
+                color: root.modeColor()
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
@@ -1020,8 +1022,8 @@ Panel {
               width: parent.width
               implicitHeight: Style.space(80)
               radius: Style.cornerRadius
-              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.05)
-              borderSpec: Border.flat(Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.14), 1)
+              color: root.modeColorRgba(0.08)
+              borderSpec: Border.flat(root.modeColorRgba(0.25), 1)
 
               Canvas {
                 id: historyCanvas
@@ -1049,7 +1051,7 @@ Panel {
                     }
                     ctx.stroke()
                   }
-                  drawSeries(hist.cpu, Color.accent.toString(), 2)
+                  drawSeries(hist.cpu, root.modeColor(), 2)
                   drawSeries(hist.gpu, Qt.darker(root.bar.foreground, 1.15).toString(), 1.5)
                 }
               }
@@ -1147,6 +1149,7 @@ Panel {
               label: "Custom fan curve"
               description: "Runs a background service that sets fan speed from this curve instead of a fixed preset. Always reverts to Auto if the service stops."
               foreground: root.bar.foreground
+              accent: root.modeColor()
               fontFamily: root.bar.fontFamily
               checked: root.status.fanCurveActive
               onClicked: root.setFanCurveEnabled(!root.status.fanCurveActive)
@@ -1186,7 +1189,7 @@ Panel {
                     }
                     var pts = fanCurveSection.points
                     if (!pts || pts.length < 2) return
-                    ctx.strokeStyle = Color.accent.toString(); ctx.lineWidth = 2
+                    ctx.strokeStyle = root.modeColor(); ctx.lineWidth = 2
                     ctx.beginPath()
                     for (var i = 0; i < pts.length; i++) {
                       var x = (pts[i].temp - 30) / 70 * w
@@ -1205,7 +1208,7 @@ Panel {
                     width: Style.space(12)
                     height: Style.space(12)
                     radius: width / 2
-                    color: Color.accent
+                    color: root.modeColor()
                     x: (pt.temp - 30) / 70 * curveArea.width - width / 2
                     y: curveArea.height - (pt.speed / 100) * curveArea.height - height / 2
                   }
@@ -1309,6 +1312,7 @@ Panel {
             ButtonGroup {
               width: parent.width
               foreground: root.bar.foreground
+              accent: root.modeColor()
               fontFamily: root.bar.fontFamily
               fontSize: Style.font.bodySmall
               cursorIndex: -1
@@ -1346,7 +1350,7 @@ Panel {
                   radius: height / 2
                   color: "#" + Model.kbColorHex(modelData.key, root.status.themeHex, root.modeHex())
                   borderSpec: swatchMouse.containsMouse
-                    ? Border.controlSpec("hover-cursor", root.bar.foreground, Color.accent)
+                    ? Border.controlSpec("hover-cursor", root.bar.foreground, root.modeColor())
                     : Border.flat(Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.25), 1)
 
                   MouseArea {
