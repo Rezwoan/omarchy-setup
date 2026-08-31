@@ -122,6 +122,22 @@ Panel {
   }
 
   function toggleGpuBoost() { runPrivileged("nvidia-powerd", root.status.powerd === "active" ? "off" : "on") }
+
+  // Refresh rate needs no privilege at all — `hyprctl keyword monitor` is a
+  // plain user-session compositor call, unlike everything else in this file.
+  // Keep the monitor's own position/scale untouched so this never reshuffles
+  // a multi-monitor layout; only the "@rate" component changes.
+  function setRefreshRate(hz) {
+    var mon = root.status.refreshMonitor
+    var res = root.status.refreshRes
+    if (!mon || !res) return
+    var rate = Number(hz)
+    if (!isFinite(rate) || rate <= 0) return
+    var pos = root.status.refreshX + "x" + root.status.refreshY
+    var scale = root.status.refreshScale || "1"
+    var spec = mon + "," + res + "@" + rate.toFixed(2) + "," + pos + "," + scale
+    runPlain("hyprctl keyword monitor " + Util.shellQuote(spec))
+  }
   function toggleBatteryLimit() { runPrivileged("battery-limit", root.status.battlimit === "on" ? "off" : "on") }
   function setFan(mode) { runPrivileged("fan", mode) }
   function setKbBrightness(pct) { runPrivileged("kb-bright", pct) }
@@ -670,6 +686,42 @@ Panel {
               fontFamily: root.bar.fontFamily
               checked: root.status.powerd === "active"
               onClicked: root.toggleGpuBoost()
+            }
+          }
+
+          PanelSeparator {
+            foreground: root.bar.foreground
+            visible: Model.refreshOptionsList(root.status.refreshOptions).length > 1
+          }
+
+          // ---------- Display ----------
+          Column {
+            width: parent.width
+            spacing: Style.space(10)
+            visible: Model.refreshOptionsList(root.status.refreshOptions).length > 1
+
+            PanelSectionHeader { text: "DISPLAY"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
+
+            Column {
+              width: parent.width
+              spacing: Style.spacing.xs
+
+              Text {
+                text: "REFRESH RATE · " + root.status.refreshMonitor.toUpperCase()
+                color: Qt.darker(root.bar.foreground, 1.5)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+              }
+              ButtonGroup {
+                width: parent.width
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                fontSize: Style.font.bodySmall
+                value: String(root.status.refreshCurrent)
+                options: Model.refreshOptionsList(root.status.refreshOptions)
+                onChanged: function(v) { root.setRefreshRate(v) }
+              }
             }
           }
 

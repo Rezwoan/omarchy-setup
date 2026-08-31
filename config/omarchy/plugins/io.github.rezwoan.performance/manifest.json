@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.rezwoan.performance",
   "name": "PredatorSense",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Rezwoan",
   "license": "MIT",
-  "description": "Predator laptop control center: one power profile selector, CPU/GPU-boost/fan/battery controls, session restore, and keyboard RGB.",
+  "description": "Predator laptop control center: one power profile selector, CPU/GPU-boost/fan/battery/refresh-rate controls, session restore, and keyboard RGB.",
   "kinds": ["bar-widget"],
   "entryPoints": { "barWidget": "Panel.qml" },
   "barWidget": {

@@ -7,7 +7,9 @@ function parseStatus(text) {
     cpucap: "", cores: "all", powerlimit: "", gpu: "n/a", gpuAvailable: false,
     powerd: "inactive", battlimit: "n/a", fan: "n/a", kbAvailable: false, kbPkgInstalled: false,
     battpct: "", battstatus: "", preset: "", themeHex: "ffffff",
-    helperOk: false, sessionEnabled: false, kbLink: "off"
+    helperOk: false, sessionEnabled: false, kbLink: "off",
+    refreshMonitor: "", refreshRes: "", refreshCurrent: "", refreshOptions: "",
+    refreshX: "0", refreshY: "0", refreshScale: "1"
   }
   try {
     var parsed = JSON.parse(String(text || "").trim())
@@ -108,6 +110,21 @@ var KB_COLORS = [
   { key: "orange", label: "Orange", hex: "ff8800" },
   { key: "white", label: "White", hex: "ffffff" }
 ]
+
+// "60,165" -> [{ value: "60", label: "60 Hz" }, { value: "165", label: "165 Hz" }]
+// for a ButtonGroup. Only ever lists rates the focused monitor's current
+// resolution actually reports (see status.sh), so there's nothing here to
+// validate further.
+function refreshOptionsList(csv) {
+  var out = []
+  var parts = String(csv || "").split(",")
+  for (var i = 0; i < parts.length; i++) {
+    var v = parts[i].trim()
+    if (v === "") continue
+    out.push({ value: v, label: v + " Hz" })
+  }
+  return out
+}
 
 function kbColorHex(key, themeHex, modeHex) {
   if (key === "theme") return themeHex || "ffffff"
