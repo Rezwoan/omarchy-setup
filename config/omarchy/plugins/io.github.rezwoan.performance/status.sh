@@ -96,17 +96,15 @@ session_enabled=false
 kb_link="$(cat /var/lib/omarchy-perf/kblink 2>/dev/null)"
 [[ $kb_link == theme || $kb_link == profile ]] || kb_link=off
 
-# Refresh rate: no privilege needed at all — `hyprctl keyword monitor` is a
-# plain user-session IPC call, same as any other hyprctl command. Options are
-# derived from the focused monitor's own availableModes at the same
+# Refresh rate: no privilege needed at all — it's applied via `hyprctl eval`
+# + `hl.monitor()` (see Panel.qml), same as any other hyprctl call. Options
+# are derived from the focused monitor's own availableModes at the same
 # resolution it's currently running, so the buttons only ever offer rates
 # the display actually supports.
 refresh_monitor=""
 refresh_res=""
 refresh_current=""
 refresh_options=""
-refresh_x="0"
-refresh_y="0"
 refresh_scale="1"
 if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
   mon_json="$(hyprctl -j monitors 2>/dev/null)"
@@ -115,8 +113,6 @@ if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     if [[ -n $focused && $focused != "null" ]]; then
       refresh_monitor="$(echo "$focused" | jq -r '.name // ""')"
       refresh_current="$(echo "$focused" | jq -r '(.refreshRate // 0) | round')"
-      refresh_x="$(echo "$focused" | jq -r '.x // 0')"
-      refresh_y="$(echo "$focused" | jq -r '.y // 0')"
       refresh_scale="$(echo "$focused" | jq -r '.scale // 1')"
       refresh_res="$(echo "$focused" | jq -r '"\(.width // 0)x\(.height // 0)"')"
       refresh_options="$(echo "$focused" | jq -r --arg res "$refresh_res" '
@@ -138,6 +134,6 @@ if [[ -x /usr/local/bin/omarchy-perf-helper ]]; then
   [[ $? -eq 2 ]] && helper_ok=true
 fi
 
-printf '{"profile":"%s","turbo":"%s","thermal":"%s","thermalChoices":"%s","cpucap":"%s","cores":"%s","powerlimit":"%s","gpu":"%s","gpuAvailable":%s,"powerd":"%s","battlimit":"%s","fan":"%s","kbAvailable":%s,"kbPkgInstalled":%s,"battpct":"%s","battstatus":"%s","preset":"%s","themeHex":"%s","helperOk":%s,"sessionEnabled":%s,"kbLink":"%s","refreshMonitor":"%s","refreshRes":"%s","refreshCurrent":"%s","refreshOptions":"%s","refreshX":"%s","refreshY":"%s","refreshScale":"%s"}\n' \
+printf '{"profile":"%s","turbo":"%s","thermal":"%s","thermalChoices":"%s","cpucap":"%s","cores":"%s","powerlimit":"%s","gpu":"%s","gpuAvailable":%s,"powerd":"%s","battlimit":"%s","fan":"%s","kbAvailable":%s,"kbPkgInstalled":%s,"battpct":"%s","battstatus":"%s","preset":"%s","themeHex":"%s","helperOk":%s,"sessionEnabled":%s,"kbLink":"%s","refreshMonitor":"%s","refreshRes":"%s","refreshCurrent":"%s","refreshOptions":"%s","refreshScale":"%s"}\n' \
   "$profile" "$turbo" "$thermal" "$thermal_choices" "$cpucap" "$cores" "$powerlimit" "$gpu" "$gpu_available" "$powerd" "$battlimit" "$fan" "$kb_available" "$kb_pkg_installed" "${battpct:-}" "${battstatus:-}" "$preset" "$theme_hex" "$helper_ok" "$session_enabled" "$kb_link" \
-  "$refresh_monitor" "$refresh_res" "$refresh_current" "$refresh_options" "$refresh_x" "$refresh_y" "$refresh_scale"
+  "$refresh_monitor" "$refresh_res" "$refresh_current" "$refresh_options" "$refresh_scale"

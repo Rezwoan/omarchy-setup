@@ -123,20 +123,24 @@ Panel {
 
   function toggleGpuBoost() { runPrivileged("nvidia-powerd", root.status.powerd === "active" ? "off" : "on") }
 
-  // Refresh rate needs no privilege at all — `hyprctl keyword monitor` is a
-  // plain user-session compositor call, unlike everything else in this file.
-  // Keep the monitor's own position/scale untouched so this never reshuffles
-  // a multi-monitor layout; only the "@rate" component changes.
+  // Refresh rate needs no privilege at all. `hyprctl keyword monitor` is
+  // rejected outright on this Lua-parsed Hyprland config ("keyword can't
+  // work with non-legacy parsers") — same story as the physical Predator-key
+  // bind — so this goes through `hyprctl eval` + the `hl.monitor()` Lua API
+  // instead. `position = "auto"` is the only value that applies cleanly
+  // (an explicit "x,y" string errors on the position field); fine for a
+  // single internal panel, and matches what re-lays-out on a mode change
+  // anyway.
   function setRefreshRate(hz) {
     var mon = root.status.refreshMonitor
     var res = root.status.refreshRes
     if (!mon || !res) return
     var rate = Number(hz)
     if (!isFinite(rate) || rate <= 0) return
-    var pos = root.status.refreshX + "x" + root.status.refreshY
     var scale = root.status.refreshScale || "1"
-    var spec = mon + "," + res + "@" + rate.toFixed(2) + "," + pos + "," + scale
-    runPlain("hyprctl keyword monitor " + Util.shellQuote(spec))
+    var lua = 'hl.monitor({ output = "' + mon + '", mode = "' + res + '@' + rate.toFixed(2)
+      + '", position = "auto", scale = ' + scale + ' })'
+    runPlain("hyprctl eval " + Util.shellQuote(lua))
   }
   function toggleBatteryLimit() { runPrivileged("battery-limit", root.status.battlimit === "on" ? "off" : "on") }
   function setFan(mode) { runPrivileged("fan", mode) }

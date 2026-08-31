@@ -8,8 +8,7 @@ function parseStatus(text) {
     powerd: "inactive", battlimit: "n/a", fan: "n/a", kbAvailable: false, kbPkgInstalled: false,
     battpct: "", battstatus: "", preset: "", themeHex: "ffffff",
     helperOk: false, sessionEnabled: false, kbLink: "off",
-    refreshMonitor: "", refreshRes: "", refreshCurrent: "", refreshOptions: "",
-    refreshX: "0", refreshY: "0", refreshScale: "1"
+    refreshMonitor: "", refreshRes: "", refreshCurrent: "", refreshOptions: "", refreshScale: "1"
   }
   try {
     var parsed = JSON.parse(String(text || "").trim())
