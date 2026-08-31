@@ -110,17 +110,16 @@ var KB_COLORS = [
   { key: "white", label: "White", hex: "ffffff" }
 ]
 
-// "60,165" -> [{ value: "60", label: "60 Hz" }, { value: "165", label: "165 Hz" }]
-// for a ButtonGroup. Only ever lists rates the focused monitor's current
-// resolution actually reports (see status.sh), so there's nothing here to
-// validate further.
-function refreshOptionsList(csv) {
+// "60,165" -> [60, 165]. Drives the refresh-rate slider by index rather
+// than raw Hz, so dragging always lands on a hardware-supported rate. Only
+// ever lists rates the focused monitor's current resolution actually
+// reports (see status.sh).
+function refreshRates(csv) {
   var out = []
   var parts = String(csv || "").split(",")
   for (var i = 0; i < parts.length; i++) {
-    var v = parts[i].trim()
-    if (v === "") continue
-    out.push({ value: v, label: v + " Hz" })
+    var v = parseInt(parts[i], 10)
+    if (!isNaN(v)) out.push(v)
   }
   return out
 }

@@ -695,36 +695,65 @@ Panel {
 
           PanelSeparator {
             foreground: root.bar.foreground
-            visible: Model.refreshOptionsList(root.status.refreshOptions).length > 1
+            visible: Model.refreshRates(root.status.refreshOptions).length > 1
           }
 
           // ---------- Display ----------
           Column {
+            id: displaySection
             width: parent.width
             spacing: Style.space(10)
-            visible: Model.refreshOptionsList(root.status.refreshOptions).length > 1
+            visible: Model.refreshRates(root.status.refreshOptions).length > 1
+
+            readonly property var rates: Model.refreshRates(root.status.refreshOptions)
+            readonly property int currentIndex: Math.max(0, rates.indexOf(Number(root.status.refreshCurrent)))
 
             PanelSectionHeader { text: "DISPLAY"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
 
             Column {
               width: parent.width
-              spacing: Style.spacing.xs
+              spacing: Style.spacing.sm
 
-              Text {
-                text: "REFRESH RATE · " + root.status.refreshMonitor.toUpperCase()
-                color: Qt.darker(root.bar.foreground, 1.5)
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
-              ButtonGroup {
+              Item {
                 width: parent.width
-                foreground: root.bar.foreground
-                fontFamily: root.bar.fontFamily
-                fontSize: Style.font.bodySmall
-                value: String(root.status.refreshCurrent)
-                options: Model.refreshOptionsList(root.status.refreshOptions)
-                onChanged: function(v) { root.setRefreshRate(v) }
+                implicitHeight: Math.max(rateHeader.implicitHeight, rateValue.implicitHeight)
+
+                Text {
+                  id: rateHeader
+                  text: "REFRESH RATE · " + root.status.refreshMonitor.toUpperCase()
+                  color: Qt.darker(root.bar.foreground, 1.5)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  anchors.left: parent.left
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                  id: rateValue
+                  text: (displaySection.rates[Math.round(refreshSlider.liveValue)] || root.status.refreshCurrent) + " Hz"
+                  color: root.bar.foreground
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+              }
+
+              PanelSlider {
+                id: refreshSlider
+                bar: root.bar
+                width: parent.width
+                minimum: 0
+                maximum: Math.max(0, displaySection.rates.length - 1)
+                step: 1
+                integer: true
+                tickCount: displaySection.rates.length
+                value: displaySection.currentIndex
+                onReleased: function(v) {
+                  var rate = displaySection.rates[Math.round(v)]
+                  if (rate !== undefined) root.setRefreshRate(rate)
+                }
               }
             }
           }
