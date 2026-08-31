@@ -69,6 +69,7 @@ config/       curated ~/.config subset:
               systemd/user/        omarchy-perf-session-save.{service,timer}
 local-bin/    omarchy-perf-session-save / -restore   ("reopen my apps on login")
 system/       fix-drive-mounts.sh, omarchy-ntfs-automount-fix.sh   (drive automount; sudo)
+              fix-usb-dongle-disconnect.sh   (2.4GHz wireless dongle drops after idle; sudo)
 packages/     pacman-explicit.txt, aur.txt
 claude/       memory/ (Claude Code's auto-memory about this machine and repo)
 ```
@@ -172,7 +173,13 @@ from Windows may carry the read-only DOS attribute (ntfs3/ntfs-3g blocks writes)
 
 ### Session restore — `local-bin/omarchy-perf-session-*` + `systemd/user`
 Snapshots open windows+workspaces each minute and reopens them on login (toggle from the
-PredatorSense plugin's General tab, SESSION section).
+PredatorSense plugin's General tab, SESSION section). Relaunching a saved app goes through
+`hyprctl eval 'hl.exec_cmd(cmd, {workspace=..., float=...})'` — **not** the classic
+`hyprctl dispatch exec "[workspace N silent] cmd"` bracket-tag syntax, which errors outright on
+this Lua-parsed Hyprland config ("']' expected near 'N'", same failure class as `hyprctl keyword
+monitor`/`hyprctl dispatch <name> <args>` elsewhere in this repo). This was a real, silent bug:
+the feature never actually restored anything from day one, because the old dispatch call always
+errored and that error was swallowed by `>/dev/null 2>&1`.
 
 ---
 
