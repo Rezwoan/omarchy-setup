@@ -5,20 +5,27 @@
 -- See https://wiki.hypr.land/Configuring/Basics/Variables/#input
 hl.config({
   input = {
-    -- Windows and Linux (libinput) apply different pointer-acceleration
-    -- curves at the same mouse DPI, which is why the same physical DPI feels
-    -- much faster here than on Windows. `flat` removes libinput's adaptive
-    -- accel curve entirely (linear 1:1 response) so DPI behaves predictably,
-    -- and `sensitivity` scales that down to compensate — tune this value
-    -- instead of touching the mouse's hardware DPI when switching OSes.
-    accel_profile = "flat",
-    sensitivity = -0.4,
     touchpad = {
       -- This touchpad's raw scroll polarity is reversed vs. the mouse, so it
       -- needs the opposite natural_scroll value to match the mouse's feel.
       natural_scroll = true,
     },
   },
+})
+
+-- Windows and Linux (libinput) apply different pointer-acceleration curves
+-- at the same mouse DPI, which is why the same physical DPI felt much
+-- faster here than on Windows. `flat` removes libinput's adaptive accel
+-- curve entirely (linear 1:1 response) so DPI behaves predictably, and
+-- `sensitivity` scales that down to compensate — tune this value instead of
+-- touching the mouse's hardware DPI when switching OSes. Scoped to this one
+-- device (via `hyprctl devices`) — an earlier version set this globally on
+-- `input`, which also flattened the internal touchpad's own (already-fine)
+-- acceleration and made it feel sluggish.
+hl.device({
+  name = "e-signal-usb-gaming-mouse",
+  accel_profile = "flat",
+  sensitivity = -0.4,
 })
 
 -- hl.config({

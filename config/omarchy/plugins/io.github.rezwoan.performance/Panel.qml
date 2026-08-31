@@ -28,6 +28,31 @@ Panel {
 
   readonly property string pluginDir: Quickshell.env("HOME") + "/.config/omarchy/plugins/io.github.rezwoan.performance"
   property var status: Model.parseStatus("")
+  property string lastKnownPowerProfile: ""
+  property bool powerProfileInitialized: false
+
+  // Our own "Power Profile" control (Advanced popover) pairs turbo with the
+  // profile when clicked, but power-profiles-daemon has other callers too —
+  // Omarchy's own default Battery/Power widget, most notably. Watch for the
+  // profile changing out from under us and apply the same pairing, so
+  // either control leaves the machine in the same state. Skipped while a
+  // named preset (Ultra Saver/.../Custom) is active: those already set
+  // turbo themselves and don't touch power-profiles-daemon at all, so an
+  // unrelated background profile drift (e.g. a desktop environment's own
+  // low-battery auto-switch) shouldn't override a deliberately-chosen
+  // preset's own turbo state.
+  onStatusChanged: {
+    var p = root.status.profile
+    if (!powerProfileInitialized) {
+      lastKnownPowerProfile = p
+      powerProfileInitialized = true
+      return
+    }
+    if (p && p !== lastKnownPowerProfile) {
+      lastKnownPowerProfile = p
+      if (!root.status.preset) runPrivileged("turbo", p === "power-saver" ? "off" : "on")
+    }
+  }
   property string activeTab: "general"
   property bool showAdvanced: false
 
