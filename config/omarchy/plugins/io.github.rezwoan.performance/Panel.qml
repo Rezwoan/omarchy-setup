@@ -775,7 +775,9 @@ Panel {
                 }
                 Text {
                   id: rateValue
-                  text: root.status.refreshCurrent + " Hz"
+                  text: (refreshSlider.dragging
+                         ? displaySection.rates[Math.round(refreshSlider.liveValue)]
+                         : root.status.refreshCurrent) + " Hz"
                   color: root.bar.foreground
                   font.family: root.bar.fontFamily
                   font.pixelSize: Style.font.caption
@@ -785,63 +787,23 @@ Panel {
                 }
               }
 
-              // Fixed stops, click-only — no drag-anywhere, no wheel-over-hover
-              // (PanelSlider changes value on scroll while merely hovering,
-              // which is exactly the accidental-change behavior this avoids).
-              Item {
-                id: rateStepper
+              // Same PanelSlider-with-tickCount pattern as the built-in
+              // Display plugin's TEXT SIZE slider (monitor/Panel.qml) — one
+              // stop per supported rate, drag-to-preview via liveValue/
+              // dragging, commit on release.
+              PanelSlider {
+                id: refreshSlider
+                bar: root.bar
                 width: parent.width
-                height: Style.space(22)
-
-                readonly property var rates: displaySection.rates
-                readonly property real usableWidth: width - dotSize
-                readonly property real dotSize: Style.space(14)
-
-                Rectangle {
-                  id: rateTrack
-                  anchors.verticalCenter: parent.verticalCenter
-                  x: rateStepper.dotSize / 2
-                  width: rateStepper.usableWidth
-                  height: Style.space(4)
-                  radius: height / 2
-                  color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.15)
-                }
-
-                Rectangle {
-                  anchors.verticalCenter: rateTrack.verticalCenter
-                  x: rateTrack.x
-                  height: rateTrack.height
-                  radius: rateTrack.radius
-                  color: Color.accent
-                  width: rateStepper.rates.length > 1
-                    ? rateTrack.width * (displaySection.currentIndex / (rateStepper.rates.length - 1))
-                    : 0
-                }
-
-                Repeater {
-                  model: rateStepper.rates.length
-                  Rectangle {
-                    id: dot
-                    required property int index
-                    readonly property bool current: index === displaySection.currentIndex
-                    width: rateStepper.dotSize
-                    height: rateStepper.dotSize
-                    radius: width / 2
-                    color: current ? Color.accent : Color.popups.background
-                    border.width: current ? 0 : Style.space(1)
-                    border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.4)
-                    anchors.verticalCenter: rateTrack.verticalCenter
-                    x: rateStepper.rates.length > 1
-                      ? rateTrack.x + rateTrack.width * (index / (rateStepper.rates.length - 1)) - width / 2
-                      : rateStepper.width / 2 - width / 2
-
-                    MouseArea {
-                      anchors.fill: parent
-                      anchors.margins: -Style.space(6)
-                      cursorShape: Qt.PointingHandCursor
-                      onClicked: root.setRefreshRate(rateStepper.rates[dot.index])
-                    }
-                  }
+                minimum: 0
+                maximum: Math.max(0, displaySection.rates.length - 1)
+                step: 1
+                integer: true
+                tickCount: displaySection.rates.length
+                value: displaySection.currentIndex
+                onReleased: function(v) {
+                  var rate = displaySection.rates[Math.round(v)]
+                  if (rate !== undefined) root.setRefreshRate(rate)
                 }
               }
             }
