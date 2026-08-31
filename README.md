@@ -37,10 +37,13 @@ claude/    memory/  ← Claude Code's persistent notes about this machine/repo
   key from Fn+F6). Recolored live: green = battery saver, neon magenta = performance, blue =
   balanced.
   - **General** — one unified Profile selector (Ultra Saver / Saver / Balanced / Performance /
-    Ultra Performance / Custom), with power-profiles-daemon + thermal profile tucked behind a
-    small gear (⚙) button for advanced use, CPU turbo/cores/max-frequency/RAPL power limit, GPU
-    mode (envycontrol) + dynamic boost, 80% battery charge limit, fan speed, session-restore
-    toggle.
+    Ultra Performance / Custom, color- and icon-coded), with power-profiles-daemon + thermal
+    profile tucked behind a small gear (⚙) button for advanced use, CPU turbo/cores/max-frequency/
+    RAPL power limit, GPU mode (envycontrol) + dynamic boost, display refresh-rate slider
+    (hyprmoncfg-aware), 80% battery charge limit, fan speed, session-restore toggle.
+  - **Telemetry** — live CPU/GPU/RAM stat tiles, a rolling load sparkline, GPU hardware info, a
+    GPU process monitor, and a draggable **fan curve** editor backed by a supervised
+    `systemd --user` daemon (reverts to auto fan if it ever stops).
   - **Keyboard** — 4-zone RGB: brightness, static colors (theme accent, live profile color, plus
     9 fixed swatches), 7 animated effects, match-theme/off.
   Every privileged write goes through a single root-owned, verb-whitelisted helper

@@ -121,17 +121,22 @@ case "$cmd" in
       off) echo 0 > "$b/battery_limiter" ;;
       *) exit 2 ;;
     esac ;;
-  fan)
+  fan) # fan <pct>: both fans together. fan <cpu_pct> <gpu_pct>: independently
+    # (v2.0.0, additive — the fan-curve daemon still only ever passes one
+    # shared value; this just leaves room for per-fan curves later without
+    # another helper change).
     b=$(echo /sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/*_sense 2>/dev/null)
     [[ -d $b && -w $b/fan_speed ]] || exit 3
     # Driver expects "cpu,gpu" (see predator_fan_speed_store in
     # linuwu_sense.c) — a bare number here was always -EINVAL, silently
-    # no-opping. Drive both fans together; that's all this panel exposes.
-    case "$val" in
-      auto) echo "0,0" > "$b/fan_speed" ;;
-      [1-9]|[1-9][0-9]|100) echo "$val,$val" > "$b/fan_speed" ;;
-      *) exit 2 ;;
-    esac ;;
+    # no-opping.
+    cpu_v="${2:-}"; gpu_v="${3:-$cpu_v}"
+    if [[ $cpu_v == auto ]]; then
+      echo "0,0" > "$b/fan_speed"
+    else
+      [[ $cpu_v =~ ^([1-9]|[1-9][0-9]|100)$ && $gpu_v =~ ^([1-9]|[1-9][0-9]|100)$ ]] || exit 2
+      echo "$cpu_v,$gpu_v" > "$b/fan_speed"
+    fi ;;
   kb-zone)   # static, all 4 zones one colour:  kb-zone <hex6> <brightness0-100>
     KB=/sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/four_zoned_kb
     [[ -w $KB/per_zone_mode ]] || exit 3

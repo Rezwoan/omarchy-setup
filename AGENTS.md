@@ -129,6 +129,41 @@ Keyboard RGB + battery limit + fan need `linuwu-sense-dkms` with its module actu
 `"cpu,gpu"` (e.g. `"50,50"`), a bare number is silently rejected by the driver. GPU mode
 switching needs `envycontrol` (AUR) — installed on this machine.
 
+**v2.0.0 (Telemetry tab + fan curve)**: a third tab alongside General/Keyboard. Live CPU/RAM
+stats come from unprivileged reads (`/proc/stat` delta for CPU%, `/proc/meminfo`,
+`thermal_zone*/type` matched by name — `x86_pkg_temp`/`TCPU`/`TCPU_PCI`, not a hardcoded zone
+index, since numbering isn't stable across boots); GPU stats come from one
+`nvidia-smi --query-gpu=...` CSV call (util/VRAM/temp/power/clocks/VBIOS/PCIe link — no `lspci`
+needed). `status.sh`'s final JSON assembly moved from a giant `printf` to `jq -n` to safely embed
+the nested history/process-list JSON (`jq` is a hard dependency of the `omarchy` package itself,
+confirmed via `pacman -Qi jq`, so this isn't a new dependency risk). A rolling ~30-sample history
+persists to `~/.config/omarchy/predatorsense-history.json`, appended once per `status.sh` run.
+
+The **fan curve** is a draggable temp→speed editor backed by `fancurve.sh`, a `systemd --user`
+unit (`omarchy-perf-fancurve.service`, installed unprivileged into
+`~/.config/systemd/user/` — installing a *user* unit needs no root at all). The daemon itself
+has no privilege of its own: it polls temp every ~5s and calls the exact same
+`sudo -n omarchy-perf-helper fan <pct>` path every other control uses. Modeled as a supervised
+`Restart=on-failure` unit rather than a disowned bash loop — Omarchy's own migration history
+(`/usr/share/omarchy/migrations/1785167800.sh`) documents moving *away* from exactly that pattern
+for fcitx5, citing the same orphan-process risk. `ExecStopPost=` plus an in-script `trap` both
+revert to `fan auto` on any stop path, so a dead daemon never leaves the fan pinned. Curve points
+persist to `~/.config/omarchy/predatorsense-fancurve.json`; `status.sh` embeds both the curve and
+whether the service is currently active.
+
+Refresh-rate changes also probe for [hyprmoncfg](https://github.com/crmne/hyprmoncfg) (AUR-only,
+not installed on this machine) and follow up with `hyprmoncfg save <profile>` if it's actively
+managing monitor config — otherwise the `hl.monitor` call stands alone until Hyprland reloads.
+Complete no-op when hyprmoncfg is absent.
+
+Two other laptop-control plugins (`ucmz851/omagpu`, `moneytosms/omarchy-asus`) were the design
+reference for this release — cloned for review under `~/Projects/` if their patterns need
+revisiting. Neither actually achieves "zero manual install" for free: omarchy-asus piggybacks on
+`asusctl`/`asusd`, a vendor package that ships its own root daemon + polkit policy (no Acer
+equivalent exists); omagpu has no scoped policy at all and re-prompts via generic `pkexec` on
+every privileged action. This plugin's one-time-setup-then-silent-`sudo -n` model remains the
+better tradeoff given the explicit no-popups requirement.
+
 ### Drives
 NTFS/exFAT volumes mount at `/mnt/{Files,Dev,Study,Windows,NewVolume}` as the user
 (uid 1000), boot-mounted, `nofail`, no password (`system/fix-drive-mounts.sh`). NTFS folders

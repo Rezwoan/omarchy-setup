@@ -51,21 +51,41 @@ password prompt. No manual `modprobe`/blacklist editing.
 
 **General tab**
 - One unified **Profile** selector — Ultra Saver / Saver / Balanced / Performance / Ultra
-  Performance / Custom — each named preset bundling CPU cores, turbo, frequency cap, RAPL power
-  limit, thermal profile, fan, keyboard color, and screen brightness. Persisted and silently
-  reapplied on every boot. Custom isn't a real preset — it's a passive indicator that lights up
-  whenever a raw control below (or in the Advanced popover) has been hand-tuned since the last
-  named preset was applied.
+  Performance / Custom, each color- and icon-coded — each named preset bundling CPU cores, turbo,
+  frequency cap, RAPL power limit, thermal profile, fan, keyboard color, and screen brightness.
+  Persisted and silently reapplied on every boot. Custom isn't a real preset — it's a passive
+  indicator that lights up whenever a raw control below (or in the Advanced popover) has been
+  hand-tuned since the last named preset was applied.
 - **Advanced** (small gear ⚙ button next to the GPU-stats/battery-info icons): the raw power
   profile (power-profiles-daemon) and thermal profile (every `platform_profile` your firmware
   exposes, not a hardcoded list) controls, for manual overrides outside the named presets.
 - CPU: turbo boost, core mode (all / no hyperthreading / E-cores only), max frequency cap, RAPL
   package power limit
 - GPU: mode switching (needs `envycontrol`, reboot required), Nvidia dynamic-boost toggle
+- Display: refresh-rate slider, one tick per rate your panel actually supports at its current
+  resolution — applied via `hyprctl eval`/`hl.monitor()` (this Hyprland config parses as Lua,
+  which rejects `hyprctl keyword monitor` outright). If [hyprmoncfg](https://github.com/crmne/hyprmoncfg)
+  is installed and managing your monitor config, the change is also saved into its active profile
+  so it survives a reboot instead of silently reverting.
 - Battery: live percentage/status, 80% charge-limit toggle, fan speed
 - Session: reopens your open windows + workspaces on next login
 
 ![CPU, GPU, battery, and fan controls](assets/screenshot-general-gpu-battery.png)
+
+**Telemetry tab**
+- Live stat tiles: CPU %, CPU package temp, RAM used, GPU utilization, GPU temp, GPU power draw —
+  color-coded green→amber→orange→red by how hot/loaded each reading is.
+- A rolling ~2.5-minute CPU/GPU-load sparkline.
+- GPU hardware info: model, driver, VBIOS, PCIe link speed/width, Vulkan/Mesa versions (the last
+  two only shown if `vulkaninfo`/`glxinfo` are installed — both optional).
+- Active GPU processes: which apps are currently using the GPU render node and how much memory
+  each holds, capped at 8.
+- **Fan curve**: a draggable temperature→speed editor. Turning it on starts a `systemd --user`
+  service (`omarchy-perf-fancurve.service`) that polls CPU/GPU temperature every ~5s and applies
+  the interpolated speed through the same privileged helper every other control uses — no new
+  privilege surface. Always reverts to auto fan if the service is stopped, disabled, or crashes.
+  Poll interval for the tiles/sparkline above is configurable (`refreshIntervalSec`, 5–60s) via
+  the plugin's settings in `~/.config/omarchy/shell.json`.
 
 **Keyboard tab** (4-zone RGB)
 - Brightness (5 steps)
@@ -103,9 +123,13 @@ sudo rm -f /usr/local/bin/omarchy-perf-helper \
            /etc/sudoers.d/omarchy-perf-helper \
            /etc/systemd/system/omarchy-perf-restore.service
 sudo systemctl daemon-reload
+systemctl --user disable --now omarchy-perf-fancurve.service 2>/dev/null
+rm -f ~/.config/systemd/user/omarchy-perf-fancurve.service
+systemctl --user daemon-reload
 ```
-(The last three lines only apply if you'd clicked "Enable privileged controls" — skip them if
-you never did.)
+(The root-owned lines only apply if you'd clicked "Enable privileged controls"; the
+`omarchy-perf-fancurve` lines only apply if you'd ever turned on the fan curve — skip whichever
+you never used.)
 
 ## Compatibility
 
@@ -116,6 +140,10 @@ you never did.)
 | GPU mode switching, dynamic boost | NVIDIA Optimus laptop + `envycontrol` |
 | Keyboard RGB, 80% battery limit, fan speed | Acer laptop + `linuwu-sense-dkms` |
 | Physical Predator-button keybind | Acer laptop where the button reports evdev KEY_PROG1 (verify with a raw evdev capture — see `claude/memory/performance-plugin.md` in the parent repo) |
+| Telemetry tab: CPU/RAM stats, sparkline | Any Linux laptop — `/proc/stat`, `/proc/meminfo`, standard thermal zones/hwmon |
+| Telemetry tab: GPU stats, hardware info, process list | NVIDIA GPU + `nvidia-smi` |
+| Telemetry tab: Vulkan/Mesa version lines | `vulkan-tools`/`mesa-utils` (both optional; line just doesn't show without them) |
+| Fan curve | Acer laptop + `linuwu-sense-dkms` (same as fan speed above) |
 
 Not an Acer Predator? The General tab (minus GPU/battery-limit/fan) still works on any
 Intel laptop. The Keyboard tab and those two General-tab rows will just stay hidden.

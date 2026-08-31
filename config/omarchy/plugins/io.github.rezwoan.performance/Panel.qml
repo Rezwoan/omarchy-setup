@@ -37,17 +37,18 @@ Panel {
   // color (fully "custom"): callers each pick their own fallback for that.
   function modeHex() {
     var key = root.status.preset || root.status.profile
-    switch (key) {
-      case "ultra": case "saver": case "power-saver": return "33ff77"      // green — battery saver
-      case "performance": case "ultra-performance": return "ff00ea"         // neon magenta — performance
-      case "balanced": return "3b82f6"                                     // blue — balanced
-      default: return ""
-    }
+    if (key === "power-saver") key = "saver" // powerprofilesctl's own name for the same color bucket
+    return Model.presetColorHex(key)
   }
 
   // Predator-logo tint: theme foreground is the fallback when modeHex() is
   // empty, so the logo still reflects something even in "custom" state.
+  // Thermal danger overrides whatever the preset/profile color would be —
+  // same priority order as a hot GPU overriding a "performance" tint in
+  // other laptop-control panels: the number that could actually hurt the
+  // hardware always wins the icon's attention over which preset is active.
   function modeColor() {
+    if (root.status.cpuTemp >= 90 || root.status.gpuTemp >= 90) return "#ff4444"
     var hex = root.modeHex()
     return hex ? ("#" + hex) : (root.bar ? root.bar.foreground : Color.foreground)
   }
@@ -131,6 +132,11 @@ Panel {
   // (an explicit "x,y" string errors on the position field); fine for a
   // single internal panel, and matches what re-lays-out on a mode change
   // anyway.
+  // After applying, if hyprmoncfg (github.com/crmne/hyprmoncfg) is installed
+  // and actively managing monitor config, it re-applies its saved profile a
+  // few seconds later — silently reverting a plain hl.monitor call. Detect
+  // it and follow up with `hyprmoncfg save <profile>` so the change sticks;
+  // a complete no-op (not even the probe fails loudly) when it's absent.
   function setRefreshRate(hz) {
     var mon = root.status.refreshMonitor
     var res = root.status.refreshRes
@@ -140,7 +146,11 @@ Panel {
     var scale = root.status.refreshScale || "1"
     var lua = 'hl.monitor({ output = "' + mon + '", mode = "' + res + '@' + rate.toFixed(2)
       + '", position = "auto", scale = ' + scale + ' })'
-    runPlain("hyprctl eval " + Util.shellQuote(lua))
+    var script = "hyprctl eval " + Util.shellQuote(lua) + "; "
+      + "if command -v hyprmoncfg >/dev/null 2>&1; then "
+      + "p=$(hyprmoncfg status --json 2>/dev/null | jq -r 'if (.daemon.running==true) then (.active_profile.name // \"\") else \"\" end' 2>/dev/null); "
+      + "[ -n \"$p\" ] && hyprmoncfg save \"$p\" >/dev/null 2>&1; fi"
+    runPlain("bash -c " + Util.shellQuote(script))
   }
   function toggleBatteryLimit() { runPrivileged("battery-limit", root.status.battlimit === "on" ? "off" : "on") }
   function setFan(mode) { runPrivileged("fan", mode) }
@@ -175,6 +185,30 @@ Panel {
     }
   }
 
+  // Fan curve: entirely unprivileged on this side — installing/toggling a
+  // *user* systemd unit needs no root at all. Only the daemon's own periodic
+  // `fan <pct>` calls go through the existing sudo -n helper path, so this
+  // adds no new privileged surface (see fancurve.sh/omarchy-perf-fancurve.service).
+  function setFanCurveEnabled(on) {
+    var home = Quickshell.env("HOME")
+    if (on) {
+      var src = Util.shellQuote(root.pluginDir + "/omarchy-perf-fancurve.service")
+      var destDir = Util.shellQuote(home + "/.config/systemd/user")
+      var dest = Util.shellQuote(home + "/.config/systemd/user/omarchy-perf-fancurve.service")
+      runPlain("install -d " + destDir + " && cp -f " + src + " " + dest
+        + " && systemctl --user daemon-reload && systemctl --user enable --now omarchy-perf-fancurve.service")
+    } else {
+      runPlain("systemctl --user disable --now omarchy-perf-fancurve.service")
+    }
+  }
+
+  function saveFanCurve(points) {
+    var home = Quickshell.env("HOME")
+    runPlain("install -d " + Util.shellQuote(home + "/.config/omarchy")
+      + " && printf '%s' " + Util.shellQuote(JSON.stringify(points))
+      + " > " + Util.shellQuote(home + "/.config/omarchy/predatorsense-fancurve.json"))
+  }
+
   function openLiveGpuStats() {
     root.bar.run("uwsm-app -- xdg-terminal-exec watch -n1 nvidia-smi")
   }
@@ -191,7 +225,7 @@ Panel {
   onOpenedChanged: if (opened) refresh()
 
   Timer {
-    interval: 5000
+    interval: root.setting("refreshIntervalSec", 5) * 1000
     running: root.opened
     repeat: true
     onTriggered: root.refresh()
@@ -218,7 +252,13 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     iconComponent: predatorLogoComponent
-    tooltipText: root.status.preset ? Model.presetLabel(root.status.preset) : "PredatorSense"
+    tooltipText: {
+      var t = root.status.preset ? Model.presetLabel(root.status.preset) : "PredatorSense"
+      if (root.status.cpuTemp >= 0) t += "\nCPU  " + Model.fmtTemp(root.status.cpuTemp)
+      if (root.status.gpuTemp >= 0) t += "\nGPU  " + Model.fmtTemp(root.status.gpuTemp)
+      if (root.status.battpct) t += "\nBatt " + root.status.battpct + "%"
+      return t
+    }
     onPressed: function(b) { root.toggle() }
   }
 
@@ -376,6 +416,7 @@ Panel {
             value: root.activeTab
             options: [
               { value: "general", label: "General" },
+              { value: "telemetry", label: "Telemetry" },
               { value: "keyboard", label: "Keyboard" }
             ]
             onChanged: function(v) { root.activeTab = v }
@@ -450,7 +491,7 @@ Panel {
                 { value: "custom", label: "Custom" }
               ]
               width: parent.width
-              columns: 3
+              columns: 2
               columnSpacing: Style.spacing.xs
               rowSpacing: Style.spacing.xs
 
@@ -458,9 +499,13 @@ Panel {
                 model: profileGrid.options
                 Button {
                   required property var modelData
+                  readonly property string presetHex: Model.presetColorHex(modelData.value)
+                  width: (profileGrid.width - profileGrid.columnSpacing) / 2
                   text: modelData.label
+                  iconText: Model.presetIcon(modelData.value)
                   fontSize: Style.font.bodySmall
                   foreground: root.bar.foreground
+                  accent: presetHex ? ("#" + presetHex) : Color.accent
                   fontFamily: root.bar.fontFamily
                   horizontalPadding: Style.spacing.sm
                   verticalPadding: Style.spacing.controlPaddingY
@@ -859,6 +904,361 @@ Panel {
 
           } // end generalTab
 
+          // ==================== Telemetry tab (v2.0.0) ====================
+          Column {
+            id: telemetryTab
+            visible: root.activeTab === "telemetry"
+            width: parent.width
+            spacing: Style.space(14)
+
+          PanelSeparator { foreground: root.bar.foreground }
+
+          // ---------- Live stats ----------
+          Column {
+            width: parent.width
+            spacing: Style.space(8)
+
+            PanelSectionHeader { text: "LIVE STATS"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
+
+            Grid {
+              id: statGrid
+              readonly property var tiles: [
+                { icon: "󰍛", label: "CPU", value: Model.fmtPct(root.status.cpuPct), color: Model.pctColor(root.status.cpuPct) },
+                { icon: "󰔏", label: "CPU TEMP", value: Model.fmtTemp(root.status.cpuTemp), color: Model.tempColor(root.status.cpuTemp) },
+                { icon: "󰘚", label: "RAM", value: Model.fmtMb(root.status.ramUsedMb), color: root.bar.foreground },
+                { icon: "󰢮", label: "GPU", value: Model.fmtPct(root.status.gpuUtil), color: Model.pctColor(root.status.gpuUtil) },
+                { icon: "󰔏", label: "GPU TEMP", value: Model.fmtTemp(root.status.gpuTemp), color: Model.tempColor(root.status.gpuTemp) },
+                { icon: "󱐋", label: "GPU POWER", value: Model.fmtWatts(root.status.gpuPowerW), color: root.bar.foreground }
+              ]
+              width: parent.width
+              columns: 2
+              columnSpacing: Style.spacing.sm
+              rowSpacing: Style.spacing.sm
+
+              Repeater {
+                model: statGrid.tiles
+                BorderSurface {
+                  id: tile
+                  required property var modelData
+                  width: (statGrid.width - statGrid.columnSpacing) / 2
+                  implicitHeight: Style.space(52)
+                  radius: Style.cornerRadius
+                  color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.05)
+                  borderSpec: Border.flat(Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.14), 1)
+
+                  Column {
+                    anchors.left: parent.left
+                    anchors.leftMargin: Style.space(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(2)
+
+                    Row {
+                      spacing: Style.space(6)
+                      Text {
+                        text: tile.modelData.icon
+                        color: tile.modelData.color
+                        font.family: root.bar.fontFamily
+                        font.pixelSize: Style.font.body
+                      }
+                      Text {
+                        text: tile.modelData.label
+                        color: Qt.darker(root.bar.foreground, 1.5)
+                        font.family: root.bar.fontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                      }
+                    }
+                    Text {
+                      text: tile.modelData.value
+                      color: tile.modelData.color
+                      font.family: root.bar.fontFamily
+                      font.pixelSize: Style.font.subtitle
+                      font.bold: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          PanelSeparator { foreground: root.bar.foreground }
+
+          // ---------- History sparkline ----------
+          Column {
+            width: parent.width
+            spacing: Style.spacing.xs
+
+            Item {
+              width: parent.width
+              implicitHeight: histHeader.implicitHeight
+              Text {
+                id: histHeader
+                text: "CPU / GPU LOAD"
+                color: Qt.darker(root.bar.foreground, 1.5)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.left: parent.left
+              }
+              Text {
+                text: "CPU · GPU"
+                color: Color.accent
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+              }
+            }
+
+            BorderSurface {
+              width: parent.width
+              implicitHeight: Style.space(80)
+              radius: Style.cornerRadius
+              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.05)
+              borderSpec: Border.flat(Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.14), 1)
+
+              Canvas {
+                id: historyCanvas
+                anchors.fill: parent
+                anchors.margins: Style.space(6)
+                renderStrategy: Canvas.Immediate
+                readonly property var hist: Model.parseHistory(root.status)
+                onHistChanged: requestPaint()
+                onPaint: {
+                  var ctx = getContext("2d")
+                  ctx.reset()
+                  var w = width, h = height
+                  ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1
+                  ctx.beginPath(); ctx.moveTo(0, h * 0.5); ctx.lineTo(w, h * 0.5); ctx.stroke()
+
+                  function drawSeries(data, color, lw) {
+                    if (!data || data.length < 2) return
+                    ctx.strokeStyle = color; ctx.lineWidth = lw
+                    ctx.beginPath()
+                    var step = w / Math.max(1, data.length - 1)
+                    for (var i = 0; i < data.length; i++) {
+                      var norm = Math.max(0, Math.min(1, data[i] / 100))
+                      var y = h - norm * h
+                      if (i === 0) ctx.moveTo(0, y); else ctx.lineTo(i * step, y)
+                    }
+                    ctx.stroke()
+                  }
+                  drawSeries(hist.cpu, Color.accent.toString(), 2)
+                  drawSeries(hist.gpu, Qt.darker(root.bar.foreground, 1.15).toString(), 1.5)
+                }
+              }
+            }
+          }
+
+          // ---------- GPU hardware ----------
+          Column {
+            width: parent.width
+            spacing: Style.spacing.xs
+            visible: root.status.gpuModel !== ""
+
+            PanelSeparator { foreground: root.bar.foreground }
+            PanelSectionHeader { text: "GPU HARDWARE"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
+            Text {
+              width: parent.width
+              wrapMode: Text.WordWrap
+              text: root.status.gpuModel
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+            Text {
+              width: parent.width
+              wrapMode: Text.WordWrap
+              text: [
+                root.status.gpuDriver ? ("Driver " + root.status.gpuDriver) : "",
+                root.status.gpuVbios ? ("VBIOS " + root.status.gpuVbios) : "",
+                root.status.gpuPcieGen >= 0 ? ("PCIe Gen" + root.status.gpuPcieGen + " x" + root.status.gpuPcieWidth) : "",
+                root.status.vulkanVer ? ("Vulkan " + root.status.vulkanVer) : "",
+                root.status.mesaVer ? ("Mesa " + root.status.mesaVer) : ""
+              ].filter(function(s) { return s !== "" }).join(" · ")
+              color: Qt.darker(root.bar.foreground, 1.4)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+          }
+
+          // ---------- GPU processes ----------
+          Column {
+            width: parent.width
+            spacing: Style.spacing.xs
+            visible: root.status.gpuProcesses.length > 0
+
+            PanelSeparator { foreground: root.bar.foreground }
+            PanelSectionHeader { text: "GPU PROCESSES"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
+
+            Repeater {
+              model: root.status.gpuProcesses
+              Item {
+                required property var modelData
+                width: parent.width
+                implicitHeight: Math.max(procName.implicitHeight, procMem.implicitHeight) + Style.space(2)
+
+                Text {
+                  id: procName
+                  text: modelData.name
+                  textFormat: Text.PlainText
+                  elide: Text.ElideRight
+                  width: parent.width - procMem.implicitWidth - Style.space(10)
+                  color: root.bar.foreground
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  anchors.left: parent.left
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                  id: procMem
+                  text: Model.fmtMb(modelData.memMb)
+                  color: Qt.darker(root.bar.foreground, 1.4)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+              }
+            }
+          }
+
+          PanelSeparator { foreground: root.bar.foreground }
+
+          // ---------- Fan curve ----------
+          Column {
+            id: fanCurveSection
+            width: parent.width
+            spacing: Style.space(10)
+
+            property var points: root.status.fanCurve
+
+            PanelSectionHeader { text: "FAN CURVE"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
+
+            Toggle {
+              width: parent.width
+              label: "Custom fan curve"
+              description: "Runs a background service that sets fan speed from this curve instead of a fixed preset. Always reverts to Auto if the service stops."
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              checked: root.status.fanCurveActive
+              onClicked: root.setFanCurveEnabled(!root.status.fanCurveActive)
+            }
+
+            Column {
+              width: parent.width
+              spacing: Style.spacing.xs
+              opacity: root.status.fanCurveActive ? 1.0 : 0.6
+
+              Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "Drag a point to change it. Temperature 30–100°C left to right, fan speed 0–100% bottom to top."
+                color: Qt.darker(root.bar.foreground, 1.5)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+
+              Item {
+                id: curveArea
+                width: parent.width
+                height: Style.space(140)
+
+                Canvas {
+                  id: curveCanvas
+                  anchors.fill: parent
+                  renderStrategy: Canvas.Immediate
+                  onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.reset()
+                    var w = width, h = height
+                    ctx.strokeStyle = "rgba(255,255,255,0.06)"; ctx.lineWidth = 1
+                    for (var g = 1; g < 4; g++) {
+                      var gy = h * g / 4
+                      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke()
+                    }
+                    var pts = fanCurveSection.points
+                    if (!pts || pts.length < 2) return
+                    ctx.strokeStyle = Color.accent.toString(); ctx.lineWidth = 2
+                    ctx.beginPath()
+                    for (var i = 0; i < pts.length; i++) {
+                      var x = (pts[i].temp - 30) / 70 * w
+                      var y = h - (pts[i].speed / 100) * h
+                      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+                    }
+                    ctx.stroke()
+                  }
+                }
+
+                Repeater {
+                  model: fanCurveSection.points.length
+                  Rectangle {
+                    required property int index
+                    readonly property var pt: fanCurveSection.points[index]
+                    width: Style.space(12)
+                    height: Style.space(12)
+                    radius: width / 2
+                    color: Color.accent
+                    x: (pt.temp - 30) / 70 * curveArea.width - width / 2
+                    y: curveArea.height - (pt.speed / 100) * curveArea.height - height / 2
+                  }
+                }
+
+                MouseArea {
+                  id: dragArea
+                  anchors.fill: parent
+                  property int activeIndex: -1
+
+                  function nearestIndex(mx, my) {
+                    var best = -1, bestDist = 1e9
+                    var pts = fanCurveSection.points
+                    for (var i = 0; i < pts.length; i++) {
+                      var px = (pts[i].temp - 30) / 70 * width
+                      var py = height - (pts[i].speed / 100) * height
+                      var d = Math.hypot(mx - px, my - py)
+                      if (d < bestDist) { bestDist = d; best = i }
+                    }
+                    return best
+                  }
+
+                  onPressed: function(mouse) { activeIndex = nearestIndex(mouse.x, mouse.y) }
+                  onPositionChanged: function(mouse) {
+                    if (activeIndex < 0) return
+                    var newTemp = Math.max(30, Math.min(100, Math.round(30 + mouse.x / width * 70)))
+                    var newSpeed = Math.max(0, Math.min(100, Math.round(100 - mouse.y / height * 100)))
+                    var pts = fanCurveSection.points.slice()
+                    pts[activeIndex] = { temp: newTemp, speed: newSpeed }
+                    fanCurveSection.points = pts
+                    curveCanvas.requestPaint()
+                  }
+                  onReleased: {
+                    if (activeIndex >= 0) root.saveFanCurve(fanCurveSection.points)
+                    activeIndex = -1
+                  }
+                }
+              }
+
+              Button {
+                text: "Reset to defaults"
+                fontSize: Style.font.bodySmall
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                horizontalPadding: Style.spacing.sm
+                verticalPadding: Style.spacing.controlPaddingY
+                bordered: true
+                onClicked: {
+                  var defaults = [{ temp: 40, speed: 30 }, { temp: 60, speed: 50 }, { temp: 75, speed: 75 }, { temp: 90, speed: 100 }]
+                  fanCurveSection.points = defaults
+                  curveCanvas.requestPaint()
+                  root.saveFanCurve(defaults)
+                }
+              }
+            }
+          }
+
+          } // end telemetryTab
+
           // ==================== Keyboard tab ====================
           Column {
             id: keyboardTab
@@ -898,6 +1298,7 @@ Panel {
           Column {
             width: parent.width
             spacing: Style.spacing.xs
+            opacity: root.status.kbAvailable ? 1.0 : 0.5
             PanelSectionHeader { text: "BRIGHTNESS"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
             ButtonGroup {
               width: parent.width
@@ -922,6 +1323,7 @@ Panel {
           Column {
             width: parent.width
             spacing: Style.spacing.xs
+            opacity: root.status.kbAvailable ? 1.0 : 0.5
             PanelSectionHeader { text: "COLOR · STATIC"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
             Grid {
               width: parent.width
@@ -965,6 +1367,7 @@ Panel {
           Column {
             width: parent.width
             spacing: Style.spacing.xs
+            opacity: root.status.kbAvailable ? 1.0 : 0.5
             PanelSectionHeader { text: "EFFECT"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
             Grid {
               id: effectGrid
@@ -1005,6 +1408,7 @@ Panel {
           Row {
             width: parent.width
             spacing: Style.space(10)
+            opacity: root.status.kbAvailable ? 1.0 : 0.5
 
             Button {
               text: "Match Omarchy theme"

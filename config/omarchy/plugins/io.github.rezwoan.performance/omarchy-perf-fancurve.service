@@ -1,0 +1,16 @@
+[Unit]
+Description=PredatorSense software fan curve
+# Independent of graphical-session.target's stop ordering isn't needed here —
+# PartOf ties this unit's stop to the session's, which is what drives the
+# ExecStopPost fan-auto revert on logout, not just on manual disable.
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.config/omarchy/plugins/io.github.rezwoan.performance/fancurve.sh
+ExecStopPost=-/usr/bin/sudo -n /usr/local/bin/omarchy-perf-helper fan auto
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

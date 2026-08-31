@@ -2,17 +2,31 @@
   "schemaVersion": 1,
   "id": "io.github.rezwoan.performance",
   "name": "PredatorSense",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "author": "Rezwoan",
   "license": "MIT",
-  "description": "Predator laptop control center: one power profile selector, CPU/GPU-boost/fan/battery/refresh-rate controls, session restore, and keyboard RGB.",
+  "description": "Predator laptop control center: power profile selector, live CPU/GPU/RAM telemetry with history graphs, a software fan curve, CPU/GPU/battery/refresh-rate controls, session restore, and keyboard RGB.",
   "kinds": ["bar-widget"],
   "entryPoints": { "barWidget": "Panel.qml" },
   "barWidget": {
     "displayName": "PredatorSense",
-    "description": "Power profile, CPU/battery/fan controls, and keyboard RGB for the Acer Predator laptop",
+    "description": "Power profile, live telemetry, fan curve, CPU/battery/fan controls, and keyboard RGB for the Acer Predator laptop",
     "category": "System",
     "allowMultiple": false,
-    "defaultSection": "right"
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 5
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Telemetry refresh interval (seconds)",
+        "min": 5,
+        "max": 60,
+        "step": 5,
+        "defaultValue": 5
+      }
+    ]
   }
 }
