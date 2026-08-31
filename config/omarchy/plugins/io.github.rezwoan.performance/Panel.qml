@@ -217,14 +217,6 @@ Panel {
       + " > " + Util.shellQuote(home + "/.config/omarchy/predatorsense-fancurve.json"))
   }
 
-  function openLiveGpuStats() {
-    root.bar.run("uwsm-app -- xdg-terminal-exec watch -n1 nvidia-smi")
-  }
-
-  function sendBatteryInfo() {
-    root.bar.run("bash -c 'info=$(upower -i \"$(upower -e 2>/dev/null | grep -m1 BAT)\" 2>/dev/null | grep -E \"state|percentage|energy-rate|time to|capacity:\" | sed \"s/^ *//\"); omarchy-notification-send -u low \"Battery\" \"${info:-No battery info available}\"'")
-  }
-
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -385,20 +377,6 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(4)
 
-              PanelActionButton {
-                iconText: "󰋚"
-                tooltipText: "Live GPU stats"
-                foreground: root.bar.foreground
-                fontFamily: root.bar.fontFamily
-                onClicked: root.openLiveGpuStats()
-              }
-              PanelActionButton {
-                iconText: "󰁹"
-                tooltipText: "Battery info"
-                foreground: root.bar.foreground
-                fontFamily: root.bar.fontFamily
-                onClicked: root.sendBatteryInfo()
-              }
               PanelActionButton {
                 iconText: "󰒓"
                 tooltipText: "Advanced: power & thermal profile"
