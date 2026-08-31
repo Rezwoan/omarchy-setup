@@ -1,4 +1,6 @@
 - [omarchy-setup-repo](omarchy-setup-repo.md) — public GitHub restore repo (Rezwoan/omarchy-setup), rebuilt for omarchy-shell
 - [machine-hardware-setup](machine-hardware-setup.md) — Acer Predator PHN16-71, Omarchy 4.0.1+ (omarchy-shell), custom tooling
 - [performance-plugin](performance-plugin.md) — Performance bar-widget plugin architecture + hard-won QML/Quickshell lessons
+- [predatorsense-v2-status](predatorsense-v2-status.md) — v2.0.0 shipped locally + dotfiles; marketplace repo staged but NOT pushed/submitted (user said hold)
 - [feedback-explicit-commands](feedback-explicit-commands.md) — always give the full copy-pasteable command for steps the user must run themselves
+- [feedback-documentation-discipline](feedback-documentation-discipline.md) — update CHANGELOG/README/CLAUDE.md/memory after non-trivial feature work
